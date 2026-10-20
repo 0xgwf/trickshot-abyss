@@ -160,16 +160,16 @@ const base: PassiveDef[] = [
     zh: '不竭圣杯',
     en: 'Everflowing Goblet',
     evolved: false,
-    desc: () => '可以以 20% 的效率超过生命上限回复生命',
+    desc: (lv) => `可以以 ${v(lv, [20, 30, 40])}% 的效率超过生命上限回复生命`,
   },
   {
     id: 'beholder',
     zh: '魔眼',
     en: 'Eye of the Beholder',
     evolved: false,
-    desc: () => '10% 几率闪避攻击',
-    stats: (s) => {
-      s.dodge = Math.max(s.dodge, 0.1);
+    desc: (lv) => `${v(lv, [10, 15, 20])}% 几率闪避攻击`,
+    stats: (s, lv) => {
+      s.dodge = Math.max(s.dodge, v(lv, [0.1, 0.15, 0.2]));
     },
   },
   {
@@ -483,7 +483,7 @@ const evolved: PassiveDef[] = [
     en: 'Cornucopia',
     evolved: true,
     recipes: [[['rattle'], ['warhorn']]],
-    desc: () => '每次产生迷你弹珠时，额外产生 0-1 颗',
+    desc: (lv) => `每次产生迷你弹珠时，额外产生 ${v(lv, ['0-1', '0-2', '1-2'])} 颗`,
   },
   {
     id: 'deadeyecross',
@@ -510,12 +510,12 @@ const evolved: PassiveDef[] = [
     en: 'Inglorious Hammer',
     evolved: true,
     recipes: [[['dumbbell'], ['hatchet']]],
-    desc: () => '弹珠碰到墙壁或坑道顶端时，以额外 50% 伤害打击一个随机敌人',
-    onWall: (b, ball) => {
+    desc: (lv) => `弹珠碰到墙壁或坑道顶端时，以额外 ${v(lv, [50, 75, 100])}% 伤害打击一个随机敌人`,
+    onWall: (b, ball, lv) => {
       const e = b.randomEnemy();
       if (!e) return;
       b.beam(ball.x, ball.y, e.cx, e.cy, '#ffe9a0', 3, 0.15);
-      b.damage(e, b.stats.baseDamage * b.roll([3.5, 6.5]) * 1.5 * (ball.baby ? 0.35 : 1), 'passive');
+      b.damage(e, b.stats.baseDamage * b.roll([3.5, 6.5]) * (1 + v(lv, [0.5, 0.75, 1])) * (ball.baby ? 0.35 : 1), 'passive');
     },
   },
   {
@@ -524,11 +524,11 @@ const evolved: PassiveDef[] = [
     en: 'Remote Detonator',
     evolved: true,
     recipes: [[['pressurevalve'], ['magnet']]],
-    desc: () => '敌人死亡时生成一颗 1 级炸弹弹珠',
-    onKill: (b, e) => {
+    desc: (lv) => `敌人死亡时生成一颗 ${lv} 级炸弹弹珠`,
+    onKill: (b, e, lv) => {
       if (b.balls.filter((x) => x.temp && x.parts.some((p) => p.def.id === 'bomb')).length >= 6) return;
       b.spawnBall({
-        parts: [{ def: BALLS.bomb, lv: 1 }],
+        parts: [{ def: BALLS.bomb, lv }],
         baby: false,
         x: e.cx,
         y: e.cy,
@@ -543,10 +543,10 @@ const evolved: PassiveDef[] = [
     en: 'Windweaver',
     evolved: true,
     recipes: [[['tornado'], ['slingshot']]],
-    desc: () => '每次拾取经验宝石时射出一颗 1 级疾风弹珠',
-    onGem: (b) => {
+    desc: (lv) => `每次拾取经验宝石时射出一颗 ${lv} 级疾风弹珠`,
+    onGem: (b, lv) => {
       const p = b.player;
-      b.spawnBall({ parts: [{ def: BALLS.wind, lv: 1 }], baby: false, x: p.x, y: p.y - p.r, angle: p.aim, temp: true });
+      b.spawnBall({ parts: [{ def: BALLS.wind, lv }], baby: false, x: p.x, y: p.y - p.r, angle: p.aim, temp: true });
     },
   },
   {
@@ -555,10 +555,10 @@ const evolved: PassiveDef[] = [
     en: 'Wings of the Anointed',
     evolved: true,
     recipes: [[['feather'], ['fleetfeet']]],
-    desc: () => '弹珠速度提高 40%，你的移动速度提高 20%',
-    stats: (s) => {
-      s.ballSpeedMul *= 1.4;
-      s.moveSpeed *= 1.2;
+    desc: (lv) => `弹珠速度提高 ${v(lv, [40, 60, 80])}%，你的移动速度提高 ${v(lv, [20, 30, 40])}%`,
+    stats: (s, lv) => {
+      s.ballSpeedMul *= 1 + v(lv, [0.4, 0.6, 0.8]);
+      s.moveSpeed *= 1 + v(lv, [0.2, 0.3, 0.4]);
       s.moveFullWhileShooting = true;
     },
   },

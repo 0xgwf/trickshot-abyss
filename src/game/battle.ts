@@ -647,8 +647,16 @@ export class Battle {
   spawnBaby(x: number, y: number, angle?: number, inherit?: Part[], tag?: BallTag, speedMul?: number) {
     const a = angle ?? this.rng.range(-Math.PI + 0.3, -0.3);
     const ball = this.spawnBall({ parts: inherit ?? [], baby: true, x, y, angle: a, temp: true, tag, speedMul });
-    if (tag === undefined && this.hasPassive('cornucopia') && this.rng.chance(0.5)) {
-      this.spawnBall({ parts: inherit ?? [], baby: true, x, y, angle: a + this.rng.range(-0.4, 0.4), temp: true });
+    const horn = this.passiveLv('cornucopia');
+    if (tag === undefined && horn) {
+      const [lo, hi] = [
+        [0, 1],
+        [0, 2],
+        [1, 2],
+      ][horn - 1];
+      const extra = this.rng.int(lo, hi);
+      for (let i = 0; i < extra; i++)
+        this.spawnBall({ parts: inherit ?? [], baby: true, x, y, angle: a + this.rng.range(-0.4, 0.4), temp: true });
     }
     return ball;
   }
@@ -1054,7 +1062,8 @@ export class Battle {
 
   heal(n: number) {
     const p = this.player;
-    const over = this.hasPassive('everflowing') ? 0.2 : 0;
+    const goblet = this.passiveLv('everflowing');
+    const over = goblet ? [0.2, 0.3, 0.4][goblet - 1] : 0;
     const room = Math.max(0, p.maxHp - p.hp);
     const healed = Math.min(n, room) + Math.max(0, n - room) * over;
     if (healed <= 0) return;
