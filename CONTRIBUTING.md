@@ -30,7 +30,8 @@ refactor: 关卡数据改为配置驱动
 ## 改数值或加内容时
 
 - 游戏数据放在 `src/game/data/`，以 CC BY-SA 4.0 发布。新增内容如果参考了 wiki 等资料，请在 [ATTRIBUTION.md](ATTRIBUTION.md) 里补上来源；自己估算的数值请记到 [docs/NOTES.md](docs/NOTES.md)。
-- 改完跑一下 `npm run sim -- 12` 看胜率和有没有报错。参数依次是 `[局数] [角色] [none|boneyard|snowy] [full|boss] [关卡]`。
+- 改完跑一下 `npm test` 和 `npm run stress`，再用 `npm run sim -- 12` 看胜率和有没有报错。`sim` 的参数依次是 `[局数] [角色] [none|boneyard|snowy] [full|boss] [关卡] [起始种子]`。
+- 新加弹珠或被动时，`npm run stress` 会自动把它放上场跑；卡面文字里写了具体数值的效果，最好在 `test/` 里补一条测试。
 - 不要提交原作的任何美术、音频或代码。
 
 ## 授权

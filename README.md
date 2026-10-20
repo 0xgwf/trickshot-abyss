@@ -67,9 +67,14 @@ Leaderboard entries are stored in `data/scores.json`; delete the file to reset t
 npm run dev                 # Vite dev server (no leaderboard in this mode)
 npm run check               # Prettier format check + TypeScript type check
 npm run format              # fix formatting
+npm test                    # unit tests: damage formula, statuses, recipes, data integrity
 npm run sim -- 20           # play 20 headless runs with the autopilot: win rate, run time, damage taken
+npm run stress              # every ball, passive and character on the field (add `full` for every level and fusions)
 node tools/shot.ts <dir>    # play a run in headless Chrome and save screenshots (needs /usr/bin/google-chrome)
 ```
+
+- `npm run sim` and `npm run stress` check every frame for problems that don't throw: NaN values, balls lost from the inventory, statuses above their cap, runs that stop dealing damage (`tools/invariants.ts`). Both exit non-zero when a check fails and print the seed or case to rerun. Runs are deterministic, so a seed always replays the same way.
+- Tests marked `todo` describe known bugs: they run, but don't fail the suite until the bug is fixed.
 
 - Stack: TypeScript, Vite, Canvas 2D and Web Audio, with no runtime dependencies. The server only uses Node's built-in `http` module.
 - `src/game/` is pure game logic with no browser APIs, which is why it can run headless in Node (`tools/sim.ts`).

@@ -61,4 +61,4 @@
 
 ## 平衡测试
 
-`node tools/sim.ts 20` 用自动驾驶跑 20 局。目前战士在第一层的胜率大约 40%–50%，一局 8–10 分钟；在第二层大约 35%，一局 11 分钟左右（参数：`node tools/sim.ts 12 warrior boneyard full snowy`）。自动驾驶不太会接球，也不会刻意打出王冠弹射，真人应该比它打得好。觉得难或简单，可以调 `src/game/config.ts` 里的 `enemyBaseHp`、`enemyHpGrowthPerRow` 和 `scrollSpeed`。
+`node tools/sim.ts 20` 用自动驾驶跑 20 局。`node tools/stress.ts full` 会把每种弹珠（每个等级、单独和融合）、每个被动和每个角色都放上场跑一遍，并列出伤害明显偏离同类中位数的弹珠，方便发现数值或机制问题。目前战士在第一层的胜率大约 40%–50%，一局 8–10 分钟；在第二层大约 35%，一局 11 分钟左右（参数：`node tools/sim.ts 12 warrior boneyard full snowy`）。自动驾驶不太会接球，也不会刻意打出王冠弹射，真人应该比它打得好。觉得难或简单，可以调 `src/game/config.ts` 里的 `enemyBaseHp`、`enemyHpGrowthPerRow` 和 `scrollSpeed`。

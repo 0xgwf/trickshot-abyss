@@ -65,9 +65,14 @@ kill $(pgrep -f '^node server.mjs$')   # 停止
 npm run dev               # Vite 开发服务器（这个模式下没有排行榜）
 npm run check             # Prettier 格式检查 + TypeScript 类型检查
 npm run format            # 自动整理格式
+npm test                  # 单元测试：伤害公式、异常状态、合成配方、数据完整性
 npm run sim -- 20         # 用自动驾驶无界面跑 20 局，看胜率、用时和受伤来源
+npm run stress            # 把每种弹珠、被动和角色都放上场跑一遍（加 full 跑全部等级和融合）
 node tools/shot.ts <目录>  # 用本机 Chrome 无头跑一局并截图（需要 /usr/bin/google-chrome）
 ```
+
+- `npm run sim` 和 `npm run stress` 每一帧都会检查那些不报错的问题：数值变成 NaN、弹珠从背包里丢了、异常状态超过上限、整局打不出伤害等（见 `tools/invariants.ts`）。检查不通过就以非零状态退出，并打印可以重跑的种子或用例。同一个种子每次跑出来都一样，可以原样复现。
+- 标成 `todo` 的测试记录的是已知 bug：照常运行，但在修好之前不会让测试失败。
 
 - 技术栈：TypeScript + Vite + Canvas 2D + Web Audio，运行时没有任何依赖。服务端只用了 Node 自带的 `http` 模块。
 - `src/game/` 是纯游戏逻辑，不依赖浏览器，所以可以在 Node 里无界面运行（`tools/sim.ts`）。
