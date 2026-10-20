@@ -86,6 +86,9 @@ export interface Zone {
   tick: number;
   /** Touch-once zones (lava, tar, spikes) remember who they already hit. */
   once: Set<Enemy> | null;
+  /** Damage per second to enemies within a tile (lava, tar and ice spikes). */
+  aura?: Range;
+  auraTick?: number;
   apply(b: Battle, e: Enemy): void;
   dead?: boolean;
 }
@@ -719,7 +722,7 @@ export class Battle {
 
     // Catch: the ball is coming down and touches the player.
     if (ball.vy > 0 && ball.age > 0.25) {
-      const cr = p.r + ball.r + this.stats.catchRadius * TILE * 0.5;
+      const cr = p.r + ball.r + this.stats.catchRadius * TILE;
       if ((ball.x - p.x) ** 2 + (ball.y - p.y) ** 2 < cr * cr) this.catchBall(ball, true);
     }
   }
@@ -839,6 +842,13 @@ export class Battle {
         let ny = ball.y - cy;
         const d2 = nx * nx + ny * ny;
         if (d2 > r * r) continue;
+        // Still on its way through this enemy's body: no new contact until it is out (shields stay solid).
+        if (c.weak && ball.hitCd.has(e)) {
+          ball.hitCd.set(e, 0.35);
+          continue;
+        }
+        ball.inVx = ball.vx;
+        ball.inVy = ball.vy;
         if (d2 > 1e-6) {
           const d = Math.sqrt(d2);
           nx /= d;
@@ -857,13 +867,11 @@ export class Battle {
         const side = ny > 0.6 ? 'front' : ny < -0.6 ? 'back' : nx > 0 ? 'right' : 'left';
         const weak = c.weak && e.def.immuneSide !== side;
         if (weak && (ball.passThrough || ball.parts.some((pt) => pt.def.pierceSides?.includes(side)))) {
-          if (!ball.hitCd.has(e)) {
-            ball.hitCd.set(e, 0.35);
-            this.hitEnemy(ball, e, side);
-            if (ball.destroysOnHit) {
-              this.destroyBall(ball);
-              return;
-            }
+          ball.hitCd.set(e, 0.35);
+          this.hitEnemy(ball, e, side);
+          if (ball.destroysOnHit) {
+            this.destroyBall(ball);
+            return;
           }
           continue;
         }
@@ -1078,7 +1086,11 @@ export class Battle {
   ) {
     if (e.dead) return;
     const d: Dot = e[which];
-    if (d.stacks <= 0) d.tick = 1;
+    if (d.stacks <= 0) {
+      d.tick = 1;
+      d.max = 0;
+      d.dmg = [0, 0];
+    }
     d.max = Math.max(d.max, max);
     d.stacks = Math.min(d.max, d.stacks + stacks);
     d.timer = Math.max(d.timer, dur);
@@ -1130,11 +1142,12 @@ export class Battle {
     return this.enemies.filter((e) => !e.dead && e.distToPoint(x, y) <= r);
   }
 
-  /** Enemies whose centre lies in an n×n tile square centred on (x, y). */
+  /** Enemies in the n×n tiles around (x, y); an even-sized square extends half a tile further right and down. */
   enemiesInSquare(x: number, y: number, n: number) {
     const half = (n * TILE) / 2;
+    const off = n % 2 === 0 ? TILE / 2 : 0;
     return this.enemies.filter(
-      (e) => !e.dead && Math.abs(e.cx - x) <= half + e.w / 2 - TILE / 2 && Math.abs(e.cy - y) <= half + e.h / 2 - TILE / 2,
+      (e) => !e.dead && Math.abs(e.cx - x - off) <= half + e.w / 2 - TILE / 2 && Math.abs(e.cy - y - off) <= half + e.h / 2 - TILE / 2,
     );
   }
 
@@ -1374,7 +1387,8 @@ export class Battle {
       if (d.stacks <= 0) continue;
       d.timer -= dt;
       d.tick -= dt;
-      if (d.tick <= 0) {
+      // Both timers count down together; the epsilon keeps rounding drift from dropping the last tick.
+      if (d.tick <= 1e-6) {
         d.tick += 1;
         const amount = this.roll(d.dmg) * d.stacks;
         this.damage(e, amount, 'status', false, k === 'frostburn' ? 'frostburn' : 'other');
@@ -1504,6 +1518,13 @@ export class Battle {
       if (z.life <= 0 || z.y - z.r > WORLD_H) {
         z.dead = true;
         continue;
+      }
+      if (z.aura) {
+        z.auraTick = (z.auraTick ?? 0.5) - dt;
+        if (z.auraTick <= 0) {
+          z.auraTick += 1;
+          for (const e of this.enemiesInRadius(z.x, z.y, 1)) this.damage(e, this.roll(z.aura), 'aoe');
+        }
       }
       z.tick -= dt;
       if (z.tick > 0) continue;

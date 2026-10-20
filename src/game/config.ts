@@ -20,7 +20,7 @@ export const CFG = {
   shootingMoveMul: 0.6, // est.
   hpPerEnd: 15, // est. (wiki rank S: END × 13.5) → The Warrior: 6 × 15 + 10 = 100
   hpFlat: 10,
-  catchRadius: 0.6, // tiles, est.
+  catchRadius: 0.3, // tiles of extra reach beyond touching, est.
   pickupRadius: 1.0, // tiles, est.
   invulnAfterHit: 0.5, // s, est.
   minAimAngle: (20 * Math.PI) / 180, // can't aim flatter than 20° (player report)

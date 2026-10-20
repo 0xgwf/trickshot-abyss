@@ -222,7 +222,7 @@ test('the Empty Nester fires a half-damage copy with every special ball', () => 
   assert.equal(b.balls[1].life, 2.5);
 });
 
-// ------------------------------------------------------------------ known issues (todo until fixed)
+// ------------------------------------------------------------------ piercing, beams and areas
 
 /** Shoots a ball straight up from below a column of enemies and lets it fly until it reaches the top wall. */
 function shootUp(b: ReturnType<typeof arena>, parts: Parts) {
@@ -234,11 +234,9 @@ function shootUp(b: ReturnType<typeof arena>, parts: Parts) {
 
 const dummyX = (col: number) => (WORLD_W - 8 * TILE) / 2 + col * TILE + TILE / 2;
 
-for (const [id, todo] of [
-  ['ghost', false],
-  ['assassin', 'hits about 3 times: past the midline the nearest side is the back, which is solid'],
-] as const)
-  test(`a piercing ball (${id}) hits each enemy once on its way through`, { todo }, () => {
+// Assassin used to hit about 3 times: past the midline the nearest side was the back, which is solid.
+for (const id of ['ghost', 'assassin'])
+  test(`a piercing ball (${id}) hits each enemy once on its way through`, () => {
     const b = arena();
     const e = dummy(b, 1e9, 3.5, 5);
     const log = damageLog(b);
@@ -247,27 +245,23 @@ for (const [id, todo] of [
   });
 
 for (const id of ['freezeray', 'radiationbeam'])
-  test(
-    `${id}'s beam damages the enemies behind the one it hit`,
-    { todo: 'the beam follows the reflected ball, back towards the player' },
-    () => {
-      const b = arena();
-      const column = [2, 3, 4, 5, 6].map((row) => dummy(b, 1e9, 3.5, row));
-      const log = damageLog(b);
-      shootUp(b, [[id, 1]]);
-      const struck = new Set(log.filter((d) => d.kind === 'aoe').map((d) => d.e));
-      assert.ok(
-        column.slice(0, 4).every((e) => struck.has(e)),
-        `beam reached ${struck.size} of 5`,
-      );
-    },
-  );
+  test(`${id}'s beam damages the enemies behind the one it hit, not the way back`, () => {
+    const b = arena();
+    const column = [2, 3, 4, 5, 6].map((row) => dummy(b, 1e9, 3.5, row));
+    const log = damageLog(b);
+    shootUp(b, [[id, 1]]);
+    const struck = new Set(log.filter((d) => d.kind === 'aoe').map((d) => d.e));
+    assert.ok(
+      column.slice(0, 4).every((e) => struck.has(e)),
+      `beam reached ${struck.size} of 5`,
+    );
+  });
 
-for (const [lv, n, todo] of [
-  [1, 3, false],
-  [3, 4, 'the inclusive edge test catches a 5-wide band'],
+for (const [lv, n] of [
+  [1, 3],
+  [3, 4],
 ] as const)
-  test(`Earthquake L${lv} hits the ${n}×${n} tiles around the enemy`, { todo }, () => {
+  test(`Earthquake L${lv} hits the ${n}×${n} tiles around the enemy`, () => {
     const b = arena();
     const grid = [];
     for (let row = 1; row <= 9; row++) for (let col = 0; col < 8; col++) grid.push(dummy(b, 1e9, col, row));

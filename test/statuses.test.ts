@@ -120,26 +120,22 @@ test('Wind slows by 30% for 5 s at L1 and 45% for 8 s at L3', () => {
   assert.equal(f.slowTimer, 8);
 });
 
-// ------------------------------------------------------------------ known issues (todo until fixed)
+// ------------------------------------------------------------------ frame rates and caps
 
 // The browser steps the game once per display frame, so this has to hold on 120/144 Hz screens too.
 for (const fps of [30, 60, 120, 144, 165])
-  test(
-    `damage over time keeps its last tick at ${fps} fps`,
-    { todo: [120, 144].includes(fps) && 'the duration and the tick timer drift apart, so the effect ends just before its last tick' },
-    () => {
-      for (const [id, lv, dot, secs] of DOTS.filter(([, , d]) => d !== 'darkflame')) {
-        const b = arena();
-        const e = dummy(b);
-        hit(b, [[id, lv]], e);
-        const log = damageLog(b);
-        wait(b, secs + 2, fps);
-        assert.equal(log.filter((d) => d.kind === 'status').length, secs, `${id} L${lv} (${dot})`);
-      }
-    },
-  );
+  test(`damage over time keeps its last tick at ${fps} fps`, () => {
+    for (const [id, lv, dot, secs] of DOTS.filter(([, , d]) => d !== 'darkflame')) {
+      const b = arena();
+      const e = dummy(b);
+      hit(b, [[id, lv]], e);
+      const log = damageLog(b);
+      wait(b, secs + 2, fps);
+      assert.equal(log.filter((d) => d.kind === 'status').length, secs, `${id} L${lv} (${dot})`);
+    }
+  });
 
-test('a status cap from a stronger source does not outlast the status', { todo: 'Dot.max and Dot.dmg keep their highest values' }, () => {
+test('a status cap from a stronger source does not outlast the status', () => {
   const b = arena();
   const e = dummy(b);
   b.applyDot(e, 'burn', 1, 5, 3, [7, 11]); // e.g. Inferno: cap 5

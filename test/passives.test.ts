@@ -7,9 +7,7 @@ import { ENEMIES } from '../src/game/data/enemies.ts';
 import { PASSIVES } from '../src/game/data/passives.ts';
 import { arena, ball, damageLog, dummy, IDLE, wait } from './helpers.ts';
 
-// ------------------------------------------------------------------ known issues (todo until fixed)
-
-// [passive, ball that unlocks it in the level-up offers, why it never triggers]
+// [passive, ball that used to unlock it in the level-up offers, why it could never trigger]
 const NEEDS: [string, string, string][] = [
   ['frozenspike', 'frozenflame', 'Frozen Flame applies frostburn, not freeze'],
   ['midnightoil', 'frozenflame', 'Frozen Flame applies frostburn, not burn'],
@@ -19,19 +17,19 @@ const NEEDS: [string, string, string][] = [
 ];
 
 for (const [passive, ballId, why] of NEEDS)
-  test(`${passive} is not offered for ${ballId}`, { todo: why }, () => {
+  test(`${passive} is not offered for ${ballId}: ${why}`, () => {
     const b = arena();
     b.addBall(BALLS[ballId], 3);
     assert.equal(PASSIVES[passive].requires?.(b), false);
   });
 
-test('Magnet widens the catch range by 1/1.5/2 tiles', { todo: 'the catch range only counts half of catchRadius' }, () => {
+test('Magnet widens the catch range by 1/1.5/2 tiles', () => {
   // A ball falls past the player, 90% of Magnet's bonus further out than the plain catch range.
   const caught = (magnet: number, bonus: number) => {
     const b = arena('warrior', magnet ? [['magnet', magnet]] : []);
     const p = b.player;
     const s = ball(b, [['ghost', 1]]);
-    const plain = p.r + s.r + CFG.catchRadius * TILE * 0.5;
+    const plain = p.r + s.r + CFG.catchRadius * TILE;
     s.x = p.x + plain + 0.9 * bonus * TILE;
     s.y = p.y;
     s.age = 1;
@@ -50,24 +48,20 @@ test('Magnet widens the catch range by 1/1.5/2 tiles', { todo: 'the catch range 
   }
 });
 
-test(
-  'Crown of Thorns destroys the 2 nearest regular enemies even with a boss closer',
-  { todo: 'bosses take up places among the nearest' },
-  () => {
-    const b = arena('warrior', [['thorns', 1]]);
-    const p = b.player;
-    const boss = dummy(b, 1e9, 0, 3, ENEMIES.brigade);
-    boss.x = p.x - boss.w / 2;
-    boss.y = p.y - boss.h - TILE * 0.2;
-    const others = [1, 2, 3].map((i) => dummy(b, 1e9, i, 2));
-    b.hurtPlayer(5, false, 'melee');
-    assert.equal(boss.dead, false);
-    assert.equal(others.filter((e) => e.dead).length, 2);
-  },
-);
+test('Crown of Thorns destroys the 2 nearest regular enemies even with a boss closer', () => {
+  const b = arena('warrior', [['thorns', 1]]);
+  const p = b.player;
+  const boss = dummy(b, 1e9, 0, 3, ENEMIES.brigade);
+  boss.x = p.x - boss.w / 2;
+  boss.y = p.y - boss.h - TILE * 0.2;
+  const others = [1, 2, 3].map((i) => dummy(b, 1e9, i, 2));
+  b.hurtPlayer(5, false, 'melee');
+  assert.equal(boss.dead, false);
+  assert.equal(others.filter((e) => e.dead).length, 2);
+});
 
 for (const id of ['magma', 'swamp', 'glacier'])
-  test(`${id}'s pools deal 6–12 per second to enemies next to them`, { todo: 'only the ball has the aura, the pools don’t' }, () => {
+  test(`${id}'s pools deal 6–12 per second to enemies next to them`, () => {
     const b = arena();
     const s = ball(b, [[id, 1]], { x: 300, y: 400 });
     // Drop one pool, then take the ball away.

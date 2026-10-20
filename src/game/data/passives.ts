@@ -12,10 +12,10 @@ import { BALLS } from './balls.ts';
 const v = <T>(lv: number, arr: readonly T[]): T => arr[Math.min(arr.length, lv) - 1];
 const ownsAny = (b: Battle, ids: string[]) => b.owned.some((o) => o.parts.some((p) => ids.includes(p.def.id)));
 
-const FREEZERS = ['freeze', 'blizzard', 'freezeray', 'glacier', 'wraith', 'elemental', 'frozenflame'];
-const BURNERS = ['burn', 'inferno', 'magma', 'brimstone', 'fireworks', 'elemental', 'banishedflame', 'frozenflame'];
+const FREEZERS = ['freeze', 'blizzard', 'freezeray', 'glacier', 'wraith', 'elemental'];
+const BURNERS = ['burn', 'inferno', 'magma', 'brimstone', 'fireworks', 'elemental'];
 const CURSERS = ['phantom', 'sacrifice', 'banshee'];
-const POISONERS = ['poison', 'venom', 'virus', 'noxious', 'swamp', 'brimstone', 'nuclearbomb', 'radiationbeam'];
+const POISONERS = ['poison', 'venom', 'virus', 'noxious', 'swamp', 'brimstone'];
 const ALLY_PASSIVES = ['stoneeffigy', 'cursedelixir', 'goldenbull', 'healereffigy', 'archereffigy'];
 const hasAllies = (b: Battle) => ALLY_PASSIVES.some((id) => b.hasPassive(id));
 
@@ -103,8 +103,8 @@ const base: PassiveDef[] = [
     onPlayerHit: (b, lv, ranged, dmg) => {
       if (ranged) return dmg;
       const p = b.player;
-      for (const e of b.nearestEnemies(p.x, p.y, v(lv, [2, 3, 4]))) {
-        if (e.isBoss) continue;
+      const bosses = new Set(b.enemies.filter((e) => e.isBoss));
+      for (const e of b.nearestEnemies(p.x, p.y, v(lv, [2, 3, 4]), bosses)) {
         b.beam(p.x, p.y, e.cx, e.cy, '#7cff7c', 3, 0.2);
         b.execute(e);
       }

@@ -55,6 +55,9 @@ export class Ball {
   /** Damage multiplier for spawned babies (Cohabitants etc.). */
   power = 1;
   nextHitBonus = 0;
+  /** Velocity just before the latest enemy contact (beams keep going this way after a bounce). */
+  inVx = 0;
+  inVy = 0;
   /** Per-enemy re-hit cooldown so pass-through balls hit each enemy once per pass. */
   hitCd = new Map<Enemy, number>();
   /** Behaviour timers keyed by name (auras, emitters). */

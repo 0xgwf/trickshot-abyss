@@ -38,6 +38,8 @@ const beamFx = (b: Battle, x: number, y: number, a: number, color: string, width
 };
 
 const outAngle = (ball: Ball) => Math.atan2(ball.vy, ball.vx);
+/** Direction the ball was travelling when it hit (before bouncing off). */
+const inAngle = (ball: Ball) => (ball.inVx || ball.inVy ? Math.atan2(ball.inVy, ball.inVx) : outAngle(ball));
 
 const sacExplode = (b: Battle, ball: Ball, e: Enemy, n: number, self: string) => {
   b.ring(e.cx, e.cy, TILE * 0.7, '#f0e0b0', 0.25);
@@ -632,7 +634,7 @@ const evolved: BallDef[] = [
         ] as Range[]),
       )} 伤害，并有 10% 几率冰冻 ${v(lv, [10, 10, 13])} 秒`,
     onHit: (b, ball, e, lv) => {
-      const a = outAngle(ball);
+      const a = inAngle(ball);
       beamFx(b, e.cx, e.cy, a, '#a6f2ff', 8);
       b.aoe(
         b.enemiesOnRay(e.cx, e.cy, a, TILE * 0.3),
@@ -705,6 +707,7 @@ const evolved: BallDef[] = [
           life: 6,
           interval: 0.2,
           once: new Set(),
+          aura: [6, 12],
           apply: (bb, e) => {
             bb.damage(
               e,
@@ -937,6 +940,7 @@ const evolved: BallDef[] = [
           life: 6,
           interval: 0.2,
           once: new Set(),
+          aura: [6, 12],
           apply: (bb, e) => {
             bb.damage(
               e,
@@ -1125,7 +1129,7 @@ const evolved: BallDef[] = [
         ] as Range[]),
       )} 伤害并施加 1 层辐射（上限 5 层）。辐射持续 15 秒，每层使敌人受到的所有伤害提高 10%`,
     onHit: (b, ball, e, lv) => {
-      const a = outAngle(ball);
+      const a = inAngle(ball);
       beamFx(b, e.cx, e.cy, a, '#a8ff4a', 7);
       b.aoe(
         b.enemiesOnRay(e.cx, e.cy, a, TILE * 0.3),
@@ -1348,6 +1352,7 @@ const evolved: BallDef[] = [
           life: 6,
           interval: 0.2,
           once: new Set(),
+          aura: [6, 12],
           apply: (bb, e) => {
             bb.damage(
               e,
