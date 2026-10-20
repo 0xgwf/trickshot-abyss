@@ -5,6 +5,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { joinCoop } from './server/coop.mjs';
 import { joinVersus } from './server/versus.mjs';
 import { acceptWebSocket } from './server/ws.mjs';
 
@@ -130,6 +131,7 @@ server.on('upgrade', (req, socket) => {
   if (!conn) return;
   conn.onMessage = (msg) => {
     if (msg?.t === 'join' && msg.mode === 'versus') joinVersus(conn, msg);
+    else if (msg?.t === 'join' && msg.mode === 'coop') joinCoop(conn, msg);
   };
 });
 

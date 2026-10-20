@@ -58,7 +58,8 @@ export interface Snapshot {
   kills: number;
   gold: number;
   autofire: boolean;
-  player: [number, number, number, number, number, number];
+  /** Every body: x, y, aim, frozen, hurtFlash, invuln. The first holds the shared HP. */
+  bodies: [number, number, number, number, number, number][];
   enemies: EnemySnap[];
   /** Index of the stage boss in `enemies`, or -1. */
   boss: number;
@@ -101,7 +102,7 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
     kills: b.kills,
     gold: b.gold,
     autofire: b.autofire,
-    player: [r1(p.x), r1(p.y), r1(p.aim * 100) / 100, r1(p.frozen), r1(p.hurtFlash), r1(p.invuln)],
+    bodies: b.bodies.map((q) => [r1(q.x), r1(q.y), r1(q.aim * 100) / 100, r1(q.frozen), r1(q.hurtFlash), r1(q.invuln)]),
     enemies: live.map(
       (e) =>
         [
@@ -162,8 +163,10 @@ export function applySnapshot(g: Battle, s: Snapshot) {
   st.floorY = s.floorY;
   st.segment = s.segment;
   st.segRows = s.segRows;
+  while (g.bodies.length < s.bodies.length) g.bodies.push({ ...g.player });
+  g.bodies.length = s.bodies.length;
+  g.bodies.forEach((q, i) => ([q.x, q.y, q.aim, q.frozen, q.hurtFlash, q.invuln] = s.bodies[i]));
   const p = g.player;
-  [p.x, p.y, p.aim, p.frozen, p.hurtFlash, p.invuln] = s.player;
   p.hp = s.hp;
   p.maxHp = s.maxHp;
   g.lvl = s.lvl;

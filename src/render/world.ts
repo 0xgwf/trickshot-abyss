@@ -1,4 +1,4 @@
-import type { Battle } from '../game/battle.ts';
+import type { Battle, Player } from '../game/battle.ts';
 import type { Ball } from '../game/ball.ts';
 import { TILE, WORLD_H, WORLD_W } from '../game/config.ts';
 import type { Enemy } from '../game/enemy.ts';
@@ -637,8 +637,11 @@ export class WorldRenderer {
   // ---------------------------------------------------------------- player & balls
 
   private drawPlayer(b: Battle) {
+    for (const p of b.bodies) this.drawBody(b, p);
+  }
+
+  private drawBody(b: Battle, p: Player) {
     const ctx = this.ctx;
-    const p = b.player;
     // Aim guide
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 2;

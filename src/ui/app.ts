@@ -15,6 +15,7 @@ import { GAME } from '../meta.ts';
 import { WorldRenderer } from '../render/world.ts';
 import { C, ballIcon, button, hover, panel, paragraph, passiveIcon, readable, text } from './draw.ts';
 import { FX, drawCrosshair, drawHud, drawTooltip } from './hud.ts';
+import { Coop } from './coop.ts';
 import { Versus } from './versus.ts';
 
 interface Save {
@@ -24,7 +25,7 @@ interface Save {
   best: number | null;
 }
 
-type Screen = 'title' | 'select' | 'help' | 'battle' | 'versus';
+type Screen = 'title' | 'select' | 'help' | 'battle' | 'versus' | 'coop';
 
 const loadSave = (): Save => {
   const fresh: Save = { unlocks: [], clears: 0, runs: 0, best: null };
@@ -68,8 +69,9 @@ export class App {
   screen: Screen = 'title';
   battle: Battle | null = null;
   versus: Versus | null = null;
-  /** The character select screen leads into a LAN versus match instead of a solo run. */
-  private versusPick = false;
+  coop: Coop | null = null;
+  /** Where the character select screen leads: a solo run, a LAN versus match or the co-op room. */
+  private pickMode: 'solo' | 'versus' | 'coop' = 'solo';
   paused = false;
   charIdx = 0;
   levelIdx = 0;
@@ -222,6 +224,9 @@ export class App {
       case 'versus':
         this.versusFrame(ctx, dt);
         break;
+      case 'coop':
+        this.coopFrame(ctx, dt);
+        break;
     }
     if (this.audio.muted) text(ctx, '静音', VIEW_W - 60, VIEW_H - 14, { size: 13, color: C.dim });
     if (window.innerHeight > window.innerWidth * 1.1) {
@@ -248,7 +253,7 @@ export class App {
     this.versus?.socket.close();
     this.versus = null;
     this.battle = null;
-    this.versusPick = false;
+    this.pickMode = 'solo';
     this.screen = 'title';
   }
 
@@ -278,6 +283,57 @@ export class App {
     if (b.phase === 'levelup') this.drawLevelUp(ctx, b);
     else if (b.phase === 'reactor') this.drawReactor(ctx, b);
     else if ((b.phase === 'won' || b.phase === 'lost') && v.drawResult(ctx, input)) this.leaveVersus();
+  }
+
+  // ---------------------------------------------------------------- co-op
+
+  startCoop() {
+    this.coop = new Coop(load('name') || '无名氏', CHARACTERS[this.charIdx], LEVELS[this.levelIdx].id, this.unlocks);
+    this.battle = null;
+    this.screen = 'coop';
+    this.lastPhase = '';
+  }
+
+  private leaveCoop() {
+    this.coop?.socket.close();
+    this.coop = null;
+    this.battle = null;
+    this.pickMode = 'solo';
+    this.screen = 'title';
+  }
+
+  private coopFrame(ctx: CanvasRenderingContext2D, dt: number) {
+    const c = this.coop!;
+    const input = this.input;
+    c.poll();
+    const g = c.ghost;
+    if (!g || (c.state !== 'playing' && c.state !== 'ended')) {
+      const r = c.drawLobby(ctx, input);
+      if (r === 'start') c.socket.send({ t: 'start' });
+      else if (r === 'leave') this.leaveCoop();
+      return;
+    }
+    this.battle = g;
+    input.joystickEnabled = g.phase === 'play';
+    input.joystickMaxX = FX + g.left - 4;
+    c.send(dt, input);
+    for (const s of c.sounds.splice(0)) this.sfx(s as Sfx);
+    this.drawField(ctx, g);
+    const tip = drawHud(ctx, g, input, g.phase !== 'play');
+    c.drawTags(ctx);
+    if (g.phase !== this.lastPhase) {
+      this.lastPhase = g.phase;
+      this.overlaySince = this.t;
+    }
+    if (c.state === 'ended' || g.phase === 'won' || g.phase === 'lost') {
+      if (c.drawEnd(ctx, input)) this.leaveCoop();
+    } else if (g.phase === 'levelup' && g.offers) {
+      if (c.chooser === c.you) this.drawLevelUp(ctx, g, (i) => c.pick(i));
+      else c.drawWaiting(ctx);
+    } else if (g.phase === 'play') {
+      drawCrosshair(ctx, g, input);
+      if (tip) drawTooltip(ctx, tip, input);
+    }
   }
 
   // ---------------------------------------------------------------- battle
@@ -317,7 +373,22 @@ export class App {
       this.overlaySince = this.t;
     }
 
-    // World
+    this.drawField(ctx, b);
+    const tip = drawHud(ctx, b, input, this.paused || b.phase !== 'play');
+    if (b.phase === 'play' && !this.paused) {
+      drawCrosshair(ctx, b, input);
+      this.drawTouchUi(ctx, b);
+    }
+
+    if (this.paused && b.phase === 'play') this.drawPause(ctx);
+    else if (b.phase === 'levelup') this.drawLevelUp(ctx, b);
+    else if (b.phase === 'reactor') this.drawReactor(ctx, b);
+    else if (b.phase === 'won' || b.phase === 'lost') this.drawEnd(ctx, b);
+    else if (tip) drawTooltip(ctx, tip, input);
+  }
+
+  /** The world in the middle of the screen, with the side shading the HUD sits on. */
+  private drawField(ctx: CanvasRenderingContext2D, b: Battle) {
     this.world.draw(b);
     const shake = b.shake > 0 ? b.shake : 0;
     const sx = shake ? (Math.random() - 0.5) * shake : 0;
@@ -339,18 +410,6 @@ export class App {
     ctx.fillStyle = gr;
     ctx.fillRect(FX + b.right, 0, VIEW_W - FX - b.right, VIEW_H);
     this.scanlines(ctx);
-
-    const tip = drawHud(ctx, b, input, this.paused || b.phase !== 'play');
-    if (b.phase === 'play' && !this.paused) {
-      drawCrosshair(ctx, b, input);
-      this.drawTouchUi(ctx, b);
-    }
-
-    if (this.paused && b.phase === 'play') this.drawPause(ctx);
-    else if (b.phase === 'levelup') this.drawLevelUp(ctx, b);
-    else if (b.phase === 'reactor') this.drawReactor(ctx, b);
-    else if (b.phase === 'won' || b.phase === 'lost') this.drawEnd(ctx, b);
-    else if (tip) drawTooltip(ctx, tip, input);
   }
 
   private drawTouchUi(ctx: CanvasRenderingContext2D, b: Battle) {
@@ -391,7 +450,8 @@ export class App {
     return this.t - this.overlaySince > 0.35;
   }
 
-  private drawLevelUp(ctx: CanvasRenderingContext2D, b: Battle) {
+  /** In co-op `onPick` sends the choice to the server instead of applying it. */
+  private drawLevelUp(ctx: CanvasRenderingContext2D, b: Battle, onPick?: (index: number) => void) {
     const offers = b.offers;
     if (!offers) return;
     let chosen: (typeof offers)[number] | null = null;
@@ -436,7 +496,11 @@ export class App {
       text(ctx, `[${i + 1}]`, x + w / 2, yy + h - 18, { size: 14, align: 'center', color: C.dim });
       if (this.overlayReady && !chosen && ((hv && this.input.clicked(0)) || this.input.wasPressed(`Digit${i + 1}`))) chosen = o;
     });
-    if (chosen && b.offers === offers) {
+    if (chosen && onPick) {
+      onPick(offers.indexOf(chosen));
+      this.sfx('click');
+      this.overlaySince = this.t;
+    } else if (chosen && b.offers === offers) {
       applyOffer(b, chosen);
       this.sfx('click');
       this.overlaySince = this.t;
@@ -683,21 +747,26 @@ export class App {
     const x = VIEW_W / 2 - 140;
     if (button(ctx, this.input, x, 370, 280, 62, '开始游戏', { size: 24 }) || this.input.wasPressed('Enter', 'Space')) {
       this.sfx('click');
-      this.versusPick = false;
+      this.pickMode = 'solo';
       this.screen = 'select';
     }
     if (button(ctx, this.input, x, 446, 280, 54, '局域网对战')) {
       this.sfx('click');
-      this.versusPick = true;
+      this.pickMode = 'versus';
       this.screen = 'select';
     }
-    if (button(ctx, this.input, x, 514, 280, 54, '玩法说明')) {
+    if (button(ctx, this.input, x, 512, 280, 54, '局域网合作')) {
+      this.sfx('click');
+      this.pickMode = 'coop';
+      this.screen = 'select';
+    }
+    if (button(ctx, this.input, x, 578, 280, 54, '玩法说明')) {
       this.sfx('click');
       this.screen = 'help';
     }
     this.drawBoard(ctx);
     const s = this.save;
-    text(ctx, `已游玩 ${s.runs} 局 · 通关 ${s.clears} 次${s.best !== null ? ` · 最快 ${fmtTime(s.best)}` : ''}`, VIEW_W / 2, 600, {
+    text(ctx, `已游玩 ${s.runs} 局 · 通关 ${s.clears} 次${s.best !== null ? ` · 最快 ${fmtTime(s.best)}` : ''}`, VIEW_W / 2, 662, {
       size: 15,
       align: 'center',
       color: C.dim,
@@ -871,13 +940,16 @@ export class App {
     });
 
     const ok = unlocked && this.levelOpen(LEVELS[this.levelIdx]);
-    const label = ok ? `${this.versusPick ? '开始对战' : '出发'}！（${c.zh} · ${LEVELS[this.levelIdx].zh}）` : '尚未解锁';
+    const label = ok
+      ? `${this.pickMode === 'versus' ? '开始对战' : this.pickMode === 'coop' ? '进入合作房间' : '出发'}！（${c.zh} · ${LEVELS[this.levelIdx].zh}）`
+      : '尚未解锁';
     if (
       button(ctx, input, VIEW_W / 2 - 190, 612, 380, 62, label, { size: 22, disabled: !ok }) ||
       (ok && input.wasPressed('Enter', 'Space'))
     ) {
       this.sfx('click');
-      if (this.versusPick) this.startVersus();
+      if (this.pickMode === 'versus') this.startVersus();
+      else if (this.pickMode === 'coop') this.startCoop();
       else this.startRun();
     }
     if (button(ctx, input, 40, VIEW_H - 76, 140, 48, '返回', { size: 18 }) || input.wasPressed('Escape')) this.screen = 'title';

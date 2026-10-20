@@ -213,6 +213,10 @@ export class Battle {
   targetRight: number;
 
   player: Player;
+  /** Every player body on the field. `player` is the first and holds the HP the team shares (co-op adds more). */
+  bodies: Player[] = [];
+  /** Enemy HP multiplier for the team size (co-op). */
+  enemyHpMul = 1;
   stats!: DerivedStats;
   owned: OwnedBall[] = [];
   passives: OwnedPassive[] = [];
@@ -276,6 +280,7 @@ export class Battle {
       vx: 0,
       vy: 0,
     };
+    this.bodies = [this.player];
     this.recomputeStats();
     this.player.hp = this.player.maxHp;
     const start = BALLS[char.startBall];
@@ -289,7 +294,7 @@ export class Battle {
   recomputeStats() {
     const s = this.char.stats;
     const st: DerivedStats = {
-      maxHp: s.end * CFG.hpPerEnd + CFG.hpFlat,
+      maxHp: (s.end * CFG.hpPerEnd + CFG.hpFlat) * Math.max(1, this.bodies.length),
       moveSpeed: CFG.moveSpeedBase * (1 + CFG.moveSpeedPerSpd * (s.spd - 3)),
       ballSpeed: CFG.ballSpeedBase * (1 + CFG.ballSpeedPerSpd * (s.spd - 3)),
       fireInterval: 1 / (CFG.fireRateBase * (1 + CFG.fireRatePerDex * (s.dex - 4))),
@@ -317,7 +322,8 @@ export class Battle {
       st.moveFullWhileShooting = true;
     }
     for (const p of this.passives) p.def.stats?.(st, p.lv);
-    st.babyCount = Math.floor(st.babyCount * st.babyCountMul);
+    // In co-op every body brings its own baby balls.
+    st.babyCount = Math.floor(st.babyCount * st.babyCountMul) * Math.max(1, this.bodies.length);
     const hpGain = st.maxHp - this.player.maxHp;
     this.player.maxHp = st.maxHp;
     if (hpGain > 0) this.player.hp += hpGain;
@@ -355,6 +361,34 @@ export class Battle {
     }
   }
 
+  /** Co-op: adds a player body next to the others. The team shares HP, balls, XP and level-ups. */
+  addBody() {
+    const n = this.bodies.length;
+    const p: Player = {
+      ...this.player,
+      x: WORLD_W / 2 + (n % 2 ? 1 : -1) * TILE * Math.ceil(n / 2),
+      aim: -Math.PI / 2,
+      hurtFlash: 0,
+      frozen: 0,
+    };
+    this.bodies.push(p);
+    this.recomputeStats();
+    this.player.hp = this.player.maxHp;
+    this.syncBabies();
+    return p;
+  }
+
+  /** The body closest to a point (enemies target it). */
+  nearestBody(x: number, y: number) {
+    let best = this.player;
+    let bd = Infinity;
+    for (const p of this.bodies) {
+      const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+      if (d < bd) [best, bd] = [p, d];
+    }
+    return best;
+  }
+
   // ---------------------------------------------------------------- inventory
 
   addBall(def: BallDef, lv = 1) {
@@ -374,7 +408,8 @@ export class Battle {
 
   // ---------------------------------------------------------------- main loop
 
-  update(dt: number, ctl: Controls) {
+  /** Advances the battle; co-op passes one set of controls per body. */
+  update(dt: number, ctl: Controls | Controls[]) {
     this.events.length = 0;
     if (this.phase !== 'play') {
       this.updateFx(dt);
@@ -384,10 +419,11 @@ export class Battle {
     // Sub-step large frames so collisions stay stable at 2x speed.
     const steps = Math.ceil(dt / (1 / 60));
     const sdt = dt / steps;
-    for (let i = 0; i < steps && this.phase === 'play'; i++) this.step(sdt, ctl);
+    const ctls = Array.isArray(ctl) ? ctl : [ctl];
+    for (let i = 0; i < steps && this.phase === 'play'; i++) this.step(sdt, ctls);
   }
 
-  private step(dt: number, ctl: Controls) {
+  private step(dt: number, ctls: Controls[]) {
     this.t += dt;
     this.left += (this.targetLeft - this.left) * Math.min(1, dt * 2.5);
     this.right += (this.targetRight - this.right) * Math.min(1, dt * 2.5);
@@ -395,8 +431,11 @@ export class Battle {
     if (Math.abs(this.targetRight - this.right) < 0.5) this.right = this.targetRight;
 
     this.stage.update(dt);
-    this.updatePlayer(dt, ctl);
-    this.updateFiring(dt, ctl);
+    this.bodies.forEach((p, i) => {
+      const ctl = ctls[i] ?? { moveX: 0, moveY: 0, aimX: p.x, aimY: 0, fire: false, recall: false };
+      this.updatePlayer(dt, ctl, p);
+      this.updateFiring(dt, ctl, p);
+    });
     this.updateOwnedCooldowns(dt);
     for (const b of this.balls) this.updateBall(b, dt);
     this.updateEnemies(dt);
@@ -470,8 +509,7 @@ export class Battle {
 
   // ---------------------------------------------------------------- player
 
-  private updatePlayer(dt: number, ctl: Controls) {
-    const p = this.player;
+  private updatePlayer(dt: number, ctl: Controls, p: Player) {
     p.invuln = Math.max(0, p.invuln - dt);
     p.hurtFlash = Math.max(0, p.hurtFlash - dt);
     p.frozen = Math.max(0, p.frozen - dt);
@@ -525,8 +563,7 @@ export class Battle {
     this.recallReady = false;
   }
 
-  private updateFiring(dt: number, ctl: Controls) {
-    const p = this.player;
+  private updateFiring(dt: number, ctl: Controls, p: Player) {
     p.fireCd -= dt;
     const wantFire = ctl.fire || this.autofire || this.char.id === 'itchy';
     p.shooting = wantFire && this.queue.length > 0;
@@ -542,7 +579,7 @@ export class Battle {
       let a = p.aim;
       if (this.stats.scatterAim > 0) a += this.rng.range(-this.stats.scatterAim, this.stats.scatterAim);
       a = Math.min(-CFG.minAimAngle, Math.max(-Math.PI + CFG.minAimAngle, a));
-      this.launch(item, a);
+      this.launch(item, a, p);
       p.fireCd += this.stats.fireInterval;
       this.events.push({ type: 'shoot' });
     }
@@ -561,8 +598,7 @@ export class Battle {
   }
 
   /** Launches a queued item from the player. */
-  launch(item: QueueItem, angle: number) {
-    const p = this.player;
+  launch(item: QueueItem, angle: number, p = this.player) {
     const mirror = this.char.id === 'cohabitants';
     // Every ball the player shoots (babies and copies included) gets the launch hooks.
     const shot = (ball: Ball) => {
@@ -683,7 +719,8 @@ export class Battle {
     ball.trail.push({ x: ball.x, y: ball.y });
     if (ball.trail.length > 7) ball.trail.shift();
 
-    const p = this.player;
+    // Returning balls fly back to the nearest body.
+    const p = this.nearestBody(ball.x, ball.y);
     if (ball.state === 'return' || ball.repentReturn) {
       const dx = p.x - ball.x;
       const dy = p.y - ball.y;
@@ -731,10 +768,14 @@ export class Battle {
     this.collideShots(ball);
 
     // Catch: the ball is coming down and touches the player.
-    if (ball.vy > 0 && ball.age > 0.25) {
-      const cr = p.r + ball.r + this.stats.catchRadius * TILE;
-      if ((ball.x - p.x) ** 2 + (ball.y - p.y) ** 2 < cr * cr) this.catchBall(ball, true);
-    }
+    if (ball.vy > 0 && ball.age > 0.25)
+      for (const q of this.bodies) {
+        const cr = q.r + ball.r + this.stats.catchRadius * TILE;
+        if ((ball.x - q.x) ** 2 + (ball.y - q.y) ** 2 < cr * cr) {
+          this.catchBall(ball, true);
+          break;
+        }
+      }
   }
 
   /** A returning baby beyond the current baby count just disappears. */
@@ -1042,11 +1083,12 @@ export class Battle {
   /** Damage taken by source, for balancing (tools/sim.ts). */
   hurtBy: Record<string, number> = {};
 
-  hurtPlayer(dmg: number, ranged: boolean, src = 'other') {
+  /** Damages the shared HP; `body` is the one that was hit (for the flash and the number). */
+  hurtPlayer(dmg: number, ranged: boolean, src = 'other', body = this.player) {
     const p = this.player;
     if (p.invuln > 0 || this.phase !== 'play') return;
     if (this.stats.dodge > 0 && this.rng.chance(this.stats.dodge)) {
-      this.text(p.x, p.y - 20, '闪避', '#9fe8ff', 14);
+      this.text(body.x, body.y - 20, '闪避', '#9fe8ff', 14);
       return;
     }
     for (const ps of this.passives) if (ps.def.onPlayerHit) dmg = ps.def.onPlayerHit(this, ps.lv, ranged, dmg);
@@ -1056,9 +1098,9 @@ export class Battle {
     p.hp -= dmg;
     this.hurtBy[src] = (this.hurtBy[src] ?? 0) + dmg;
     p.invuln = CFG.invulnAfterHit;
-    p.hurtFlash = 0.3;
+    body.hurtFlash = 0.3;
     this.shake = Math.min(12, this.shake + 6);
-    this.text(p.x, p.y - 24, `-${dmg}`, '#ff5050', 18);
+    this.text(body.x, body.y - 24, `-${dmg}`, '#ff5050', 18);
     this.events.push({ type: 'hurt' });
   }
 
@@ -1290,7 +1332,7 @@ export class Battle {
   }
 
   private enemyAi(e: Enemy, dt: number) {
-    const p = this.player;
+    const p = this.nearestBody(e.cx, e.cy);
     if (e.frozen) {
       e.windup = 0;
       e.aiState = 0; // a frozen Beast stops its lunge
@@ -1309,7 +1351,7 @@ export class Battle {
         e.attackCd = CFG.meleeCooldown;
         if (dist < CFG.meleeRange * TILE * 1.4 && !(e.blind > 0 && this.rng.chance(0.5))) {
           this.lunge(e);
-          this.hurtPlayer(e.def.dmg * this.level.dmgMul * (1 - e.attackDown), false, 'melee');
+          this.hurtPlayer(e.def.dmg * this.level.dmgMul * (1 - e.attackDown), false, 'melee', p);
         }
       }
     } else if (e.attackCd <= 0 && dist < CFG.meleeRange * TILE) {
@@ -1441,10 +1483,10 @@ export class Battle {
   // ---------------------------------------------------------------- shots, minions, zones, drops
 
   private updateShots(dt: number) {
-    const p = this.player;
     for (const s of this.shots) {
       if (s.dead) continue;
       s.life -= dt;
+      const p = this.nearestBody(s.x, s.y);
       if (s.homing > 0) {
         s.homing -= dt;
         const a = Math.atan2(p.y - s.y, p.x - s.x);
@@ -1477,7 +1519,7 @@ export class Battle {
           p.frozen = Math.max(p.frozen, s.freeze);
           this.ring(p.x, p.y, TILE * 0.6, '#bfe8ff', 0.3);
         }
-        this.hurtPlayer(s.dmg, true, `shot:${s.kind}`);
+        this.hurtPlayer(s.dmg, true, `shot:${s.kind}`, p);
       }
     }
   }
@@ -1614,12 +1656,12 @@ export class Battle {
   }
 
   private updateDrops(dt: number) {
-    const p = this.player;
     const scroll = this.stage.floorScrollPx;
-    const pr = (this.stats.pickupRadius * TILE + p.r) ** 2;
+    const pr = (this.stats.pickupRadius * TILE + this.player.r) ** 2;
     for (const d of this.drops) {
       if (d.dead) continue;
       d.t += dt;
+      const p = this.nearestBody(d.x, d.y);
       const dx = p.x - d.x;
       const dy = p.y - d.y;
       const d2 = dx * dx + dy * dy;

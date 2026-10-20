@@ -149,7 +149,7 @@ export class Stage {
   // ---------------------------------------------------------------- spawning
 
   enemyHp(def: EnemyDef) {
-    return CFG.enemyBaseHp * this.level.hpMul * def.hpMul * (1 + CFG.enemyHpGrowthPerRow * this.rows);
+    return CFG.enemyBaseHp * this.level.hpMul * def.hpMul * (1 + CFG.enemyHpGrowthPerRow * this.rows) * this.b.enemyHpMul;
   }
 
   spawn(def: EnemyDef, x: number, y: number) {
@@ -384,7 +384,7 @@ export class Stage {
   }
 
   private aimAtPlayer(x: number, y: number) {
-    const p = this.b.player;
+    const p = this.b.nearestBody(x, y);
     return Math.atan2(p.y - y, p.x - x);
   }
 

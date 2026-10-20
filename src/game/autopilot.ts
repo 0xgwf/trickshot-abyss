@@ -3,8 +3,7 @@ import { TILE, WORLD_H } from './config.ts';
 import { applyEvolution, applyFission, applyFusion, applyOffer, findEvolutions } from './upgrades.ts';
 
 /** A simple bot used by the balance simulator and the screenshot tests (plays roughly like a casual human). */
-export function autopilot(b: Battle): Controls {
-  const p = b.player;
+export function autopilot(b: Battle, p = b.player): Controls {
   const enemies = b.enemies.filter((e) => !e.dead && e.def.rank === 'normal');
   const lowestNear = (x: number) => Math.max(0, ...enemies.filter((e) => Math.abs(e.cx - x) < TILE * 1.6).map((e) => e.y + e.h));
   let tx = (b.left + b.right) / 2;

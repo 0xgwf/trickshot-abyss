@@ -42,6 +42,15 @@ On phones and tablets in landscape, drag on the left side to move and hold on th
 
 Not done yet: the other 6 layers, town building and meta-progression, and more characters.
 
+## LAN multiplayer (demo)
+
+Both modes need the game opened through the bundled server (`npm run serve`), since they talk to it over a WebSocket at `/ws`.
+
+- **Versus** (局域网对战): the first two players who pick it are paired. Each plays their own run on their own computer, on the same seed, so both face the same enemy rows. The screen is split: your field on the left, the opponent's on the right, drawn from the snapshots their browser sends 20 times a second. Every 25 kills sends a row of enemies to the opponent; beating a miniboss sends two. First to clear the level wins; otherwise whoever got further.
+- **Co-op** (局域网合作): everyone who picks it joins one room and the first player starts. The battle runs on the server, and the players send their controls and draw the snapshots it sends back 30 times a second. The team shares HP, balls, XP and level-ups. Each player adds baby balls and 50% enemy HP, and level-ups are picked in turn. The Fusion Reactor resolves itself, and the autopilot takes over a player who drops out.
+- Not done yet: rejoining a running co-op game, picking different characters in co-op, prediction for your own movement in co-op (input lag is one snapshot, about 30–50 ms on a LAN).
+- `node tools/shot-versus.ts <dir> [url]` and `node tools/shot-coop.ts <dir> [url]` play a match in several headless Chrome windows and save screenshots.
+
 ## Run and deploy
 
 Requires Node.js 22.18 or newer.
