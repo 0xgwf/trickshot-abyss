@@ -15,6 +15,7 @@ import { GAME } from '../meta.ts';
 import { WorldRenderer } from '../render/world.ts';
 import { C, ballIcon, button, hover, panel, paragraph, passiveIcon, readable, text } from './draw.ts';
 import { FX, drawCrosshair, drawHud, drawTooltip } from './hud.ts';
+import { Versus } from './versus.ts';
 
 interface Save {
   unlocks: string[];
@@ -23,7 +24,7 @@ interface Save {
   best: number | null;
 }
 
-type Screen = 'title' | 'select' | 'help' | 'battle';
+type Screen = 'title' | 'select' | 'help' | 'battle' | 'versus';
 
 const loadSave = (): Save => {
   const fresh: Save = { unlocks: [], clears: 0, runs: 0, best: null };
@@ -66,6 +67,9 @@ export class App {
   readonly world = new WorldRenderer();
   screen: Screen = 'title';
   battle: Battle | null = null;
+  versus: Versus | null = null;
+  /** The character select screen leads into a LAN versus match instead of a solo run. */
+  private versusPick = false;
   paused = false;
   charIdx = 0;
   levelIdx = 0;
@@ -215,6 +219,9 @@ export class App {
       case 'battle':
         this.battleFrame(ctx, dt);
         break;
+      case 'versus':
+        this.versusFrame(ctx, dt);
+        break;
     }
     if (this.audio.muted) text(ctx, '静音', VIEW_W - 60, VIEW_H - 14, { size: 13, color: C.dim });
     if (window.innerHeight > window.innerWidth * 1.1) {
@@ -224,6 +231,53 @@ export class App {
     }
     this.nameInput.style.display = this.showName ? 'block' : 'none';
     input.endFrame();
+  }
+
+  // ---------------------------------------------------------------- versus
+
+  startVersus() {
+    const char = CHARACTERS[this.charIdx];
+    this.versus = new Versus(load('name') || '无名氏', char, LEVELS[this.levelIdx].id, this.unlocks);
+    this.battle = null;
+    this.screen = 'versus';
+    this.reactorView = 'main';
+    this.lastPhase = '';
+  }
+
+  private leaveVersus() {
+    this.versus?.socket.close();
+    this.versus = null;
+    this.battle = null;
+    this.versusPick = false;
+    this.screen = 'title';
+  }
+
+  private versusFrame(ctx: CanvasRenderingContext2D, dt: number) {
+    const v = this.versus!;
+    const input = this.input;
+    v.poll();
+    const b = v.battle;
+    if (!b) {
+      if (v.drawLobby(ctx, input)) this.leaveVersus();
+      return;
+    }
+    this.battle = b;
+    input.joystickEnabled = b.phase === 'play';
+    input.joystickMaxX = VIEW_W / 4;
+    if (b.phase === 'play' && (input.wasPressed('KeyF') || input.clicked(1))) b.autofire = !b.autofire;
+    // No pause and no speed-up in versus: both runs keep the same pace.
+    b.update(dt, v.controls(input, b));
+    for (const ev of b.events) this.sfx(ev.type as Sfx);
+    b.events.length = 0;
+    v.afterUpdate(dt);
+    if (b.phase !== this.lastPhase) {
+      this.lastPhase = b.phase;
+      this.overlaySince = this.t;
+    }
+    v.draw(ctx, input);
+    if (b.phase === 'levelup') this.drawLevelUp(ctx, b);
+    else if (b.phase === 'reactor') this.drawReactor(ctx, b);
+    else if ((b.phase === 'won' || b.phase === 'lost') && v.drawResult(ctx, input)) this.leaveVersus();
   }
 
   // ---------------------------------------------------------------- battle
@@ -629,15 +683,21 @@ export class App {
     const x = VIEW_W / 2 - 140;
     if (button(ctx, this.input, x, 370, 280, 62, '开始游戏', { size: 24 }) || this.input.wasPressed('Enter', 'Space')) {
       this.sfx('click');
+      this.versusPick = false;
       this.screen = 'select';
     }
-    if (button(ctx, this.input, x, 448, 280, 54, '玩法说明')) {
+    if (button(ctx, this.input, x, 446, 280, 54, '局域网对战')) {
+      this.sfx('click');
+      this.versusPick = true;
+      this.screen = 'select';
+    }
+    if (button(ctx, this.input, x, 514, 280, 54, '玩法说明')) {
       this.sfx('click');
       this.screen = 'help';
     }
     this.drawBoard(ctx);
     const s = this.save;
-    text(ctx, `已游玩 ${s.runs} 局 · 通关 ${s.clears} 次${s.best !== null ? ` · 最快 ${fmtTime(s.best)}` : ''}`, VIEW_W / 2, 560, {
+    text(ctx, `已游玩 ${s.runs} 局 · 通关 ${s.clears} 次${s.best !== null ? ` · 最快 ${fmtTime(s.best)}` : ''}`, VIEW_W / 2, 600, {
       size: 15,
       align: 'center',
       color: C.dim,
@@ -811,13 +871,14 @@ export class App {
     });
 
     const ok = unlocked && this.levelOpen(LEVELS[this.levelIdx]);
-    const label = ok ? `出发！（${c.zh} · ${LEVELS[this.levelIdx].zh}）` : '尚未解锁';
+    const label = ok ? `${this.versusPick ? '开始对战' : '出发'}！（${c.zh} · ${LEVELS[this.levelIdx].zh}）` : '尚未解锁';
     if (
       button(ctx, input, VIEW_W / 2 - 190, 612, 380, 62, label, { size: 22, disabled: !ok }) ||
       (ok && input.wasPressed('Enter', 'Space'))
     ) {
       this.sfx('click');
-      this.startRun();
+      if (this.versusPick) this.startVersus();
+      else this.startRun();
     }
     if (button(ctx, input, 40, VIEW_H - 76, 140, 48, '返回', { size: 18 }) || input.wasPressed('Escape')) this.screen = 'title';
   }

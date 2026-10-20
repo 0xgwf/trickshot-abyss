@@ -3,6 +3,7 @@ import { CFG, SEGMENT_COLS, TILE, WORLD_H, WORLD_W } from './config.ts';
 import { ENEMIES } from './data/enemies.ts';
 import type { LevelDef } from './data/levels.ts';
 import { Enemy, type EnemyDef } from './enemy.ts';
+import { Rng } from '../core/rng.ts';
 
 type Cell = string | null;
 
@@ -74,11 +75,17 @@ export class Stage {
   private introT = 0;
   private winT = 0;
   private king: KingState | null = null;
+  /**
+   * The enemy rows come from their own random stream, so two runs with the same seed (versus) face the
+   * same rows however differently they play.
+   */
+  private readonly rowRng: Rng;
   private queen: QueenState | null = null;
 
   constructor(b: Battle) {
     this.b = b;
     this.level = b.level;
+    this.rowRng = new Rng((b.seed ^ 0x5bd1e995) >>> 0);
     this.banner = { text: this.level.zh, sub: this.level.en, t: 3 };
   }
 
@@ -173,7 +180,7 @@ export class Stage {
   }
 
   private pickType(noShields = false): string {
-    const rng = this.b.rng;
+    const rng = this.rowRng;
     const w = { ...this.level.weights[this.segment] };
     // Ease in: no tough or shielded enemies in the first rows.
     const easeIn = this.segment === 0 && this.segRows < 10;
@@ -185,7 +192,7 @@ export class Stage {
 
   /** Builds a formation chunk: clusters and blocks with gaps, like the original's rows. */
   private makeChunk(): Cell[][] {
-    const rng = this.b.rng;
+    const rng = this.rowRng;
     const cols = this.cols;
     const t = this.segRows / CFG.segmentRows;
     const density = Math.min(0.8, 0.32 + 0.07 * this.segment + 0.14 * t);
@@ -268,6 +275,19 @@ export class Stage {
     }
     if (rng.chance(0.55 - 0.15 * this.segment)) out.push(empty());
     return out;
+  }
+
+  /** Versus: queues `n` rows of the segment's basic enemy, with two gaps each, ahead of the next rows. */
+  addGarbage(n: number) {
+    const cols = this.cols;
+    const id = Object.keys(this.level.weights[this.segment])[0];
+    const rows: Cell[][] = [];
+    for (let i = 0; i < n; i++) {
+      const holes = new Set([this.b.rng.int(0, cols - 1), this.b.rng.int(0, cols - 1)]);
+      rows.push(Array.from({ length: cols }, (_, c) => (holes.has(c) ? null : id)));
+    }
+    this.pending.unshift(...rows);
+    this.banner = { text: `对手送来 ${n} 行敌人`, sub: 'Incoming rows', t: 1.6 };
   }
 
   // ---------------------------------------------------------------- checkpoints

@@ -5,6 +5,8 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { joinVersus } from './server/versus.mjs';
+import { acceptWebSocket } from './server/ws.mjs';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -70,7 +72,7 @@ const json = (res, code, body) => {
   res.end(JSON.stringify(body));
 };
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   const urlPath = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
 
   if (urlPath === '/api/scores') {
@@ -119,7 +121,19 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
   }
-}).listen(PORT, '0.0.0.0', () => {
+});
+
+// Multiplayer: the first message on /ws picks the mode.
+server.on('upgrade', (req, socket) => {
+  if (new URL(req.url ?? '/', 'http://x').pathname !== '/ws') return socket.destroy();
+  const conn = acceptWebSocket(req, socket);
+  if (!conn) return;
+  conn.onMessage = (msg) => {
+    if (msg?.t === 'join' && msg.mode === 'versus') joinVersus(conn, msg);
+  };
+});
+
+server.listen(PORT, '0.0.0.0', () => {
   const ips = Object.values(networkInterfaces())
     .flat()
     .filter((i) => i && i.family === 'IPv4' && !i.internal)

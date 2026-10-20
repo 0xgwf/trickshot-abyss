@@ -201,6 +201,7 @@ const MAX_TEMP_BALLS = 70;
 
 export class Battle {
   readonly rng: Rng;
+  readonly seed: number;
   readonly char: CharacterDef;
   t = 0;
   phase: Phase = 'play';
@@ -253,6 +254,7 @@ export class Battle {
 
   constructor(char: CharacterDef, seed: number, unlocks: Set<string>, levelId = 'boneyard') {
     this.rng = new Rng(seed);
+    this.seed = seed;
     this.char = char;
     this.unlocks = unlocks;
     this.level = levelById(levelId);
