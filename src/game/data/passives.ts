@@ -2,7 +2,7 @@
 // Game data adapted from the BALL x PIT Wiki (ballxpit.wiki.gg, CC BY-SA 4.0) and the sources listed
 // in ATTRIBUTION.md; translated, condensed and partly estimated (see docs/NOTES.md).
 import type { Battle } from '../battle.ts';
-import { TILE, WORLD_H } from '../config.ts';
+import { RULES, TILE, WORLD_H } from '../config.ts';
 import type { PassiveDef, Range } from '../types.ts';
 import { BALLS } from './balls.ts';
 
@@ -456,7 +456,7 @@ const base: PassiveDef[] = [
     zh: '巫毒娃娃',
     en: 'Voodoo Doll',
     evolved: false,
-    desc: (lv) => `诅咒有 ${v(lv, [10, 15, 20])}% 几率直接杀死敌人（需要诅咒类弹珠）`,
+    desc: (lv) => `诅咒有 ${v(lv, [10, 15, 20])}% 几率直接杀死敌人（首领除外，需要诅咒类弹珠）`,
     requires: (b) => ownsAny(b, CURSERS),
   },
 ];
@@ -559,7 +559,7 @@ const evolved: PassiveDef[] = [
     stats: (s, lv) => {
       s.ballSpeedMul *= 1 + v(lv, [0.4, 0.6, 0.8]);
       s.moveSpeed *= 1 + v(lv, [0.2, 0.3, 0.4]);
-      s.moveFullWhileShooting = true;
+      if (RULES.wingsFullSpeedShooting) s.moveFullWhileShooting = true;
     },
   },
 ];

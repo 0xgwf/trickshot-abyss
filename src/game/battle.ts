@@ -1,6 +1,6 @@
 import { Rng } from '../core/rng.ts';
 import { Ball, newOwnedBall, type BallTag, type OwnedBall } from './ball.ts';
-import { CFG, SEGMENT_COLS, TILE, WORLD_H, WORLD_W } from './config.ts';
+import { CFG, RULES, SEGMENT_COLS, TILE, WORLD_H, WORLD_W } from './config.ts';
 import { BALLS } from './data/balls.ts';
 import { levelById, type LevelDef } from './data/levels.ts';
 import { Enemy, type Dot } from './enemy.ts';
@@ -295,9 +295,9 @@ export class Battle {
       babyCount: Math.floor(s.lea * CFG.babyCountPerLea),
       babyDamage: [s.lea * CFG.babyDamagePerLea[0], s.lea * CFG.babyDamagePerLea[1]],
       critChance: CFG.critChanceBase + CFG.critPerDex * s.dex,
-      statusPower: 1 + 0.05 * (s.int - 3),
-      aoePower: 1 + 0.05 * (s.int - 3),
-      passivePower: 1 + 0.05 * (s.int - 3),
+      statusPower: 1 + CFG.intPowerPerPoint * (s.int - 3),
+      aoePower: 1 + CFG.intPowerPerPoint * (s.int - 3),
+      passivePower: 1 + CFG.intPowerPerPoint * (s.int - 3),
       damageTaken: 1,
       dodge: 0,
       catchRadius: CFG.catchRadius,
@@ -319,7 +319,7 @@ export class Battle {
     const hpGain = st.maxHp - this.player.maxHp;
     this.player.maxHp = st.maxHp;
     if (hpGain > 0) this.player.hp += hpGain;
-    this.player.hp = Math.min(this.player.hp, this.player.maxHp * (this.hasPassive('everflowing') ? 3 : 1));
+    this.player.hp = Math.min(this.player.hp, this.player.maxHp * (this.hasPassive('everflowing') ? RULES.overhealCap : 1));
     this.stats = st;
   }
 
@@ -988,7 +988,7 @@ export class Battle {
     else if (kind === 'status') m *= this.stats.statusPower;
     else if (kind === 'passive') m *= this.stats.passivePower;
     if (e.invulnerable) return 0;
-    const dmg = Math.max(1, Math.round(amount * m));
+    const dmg = Math.min(RULES.maxHitDamage, Math.max(1, Math.round(amount * m)));
     e.hp -= dmg;
     e.flash = 0.08;
     this.damageDealt += dmg;
@@ -1065,7 +1065,8 @@ export class Battle {
     const goblet = this.passiveLv('everflowing');
     const over = goblet ? [0.2, 0.3, 0.4][goblet - 1] : 0;
     const room = Math.max(0, p.maxHp - p.hp);
-    const healed = Math.min(n, room) + Math.max(0, n - room) * over;
+    const cap = p.maxHp * RULES.overhealCap - p.hp;
+    const healed = Math.min(Math.min(n, room) + Math.max(0, n - room) * over, Math.max(0, cap));
     if (healed <= 0) return;
     p.hp += healed;
     this.text(p.x, p.y - 24, `+${Math.round(healed)}`, '#6dff8a', 16);
@@ -1114,7 +1115,7 @@ export class Battle {
   applyFreeze(e: Enemy, dur: number) {
     if (e.dead) return;
     const wasFrozen = e.freeze > 0;
-    e.freeze = Math.max(e.freeze, e.isBoss ? dur * 0.3 : dur);
+    e.freeze = Math.max(e.freeze, e.isBoss ? dur * RULES.bossFreezeMul : dur);
     if (!wasFrozen) {
       const lv = this.passiveLv('frozenspike');
       if (lv)

@@ -3,7 +3,7 @@
 // in ATTRIBUTION.md; translated, condensed and partly estimated (see docs/NOTES.md).
 import type { Battle } from '../battle.ts';
 import type { Ball } from '../ball.ts';
-import { TILE } from '../config.ts';
+import { RULES, TILE } from '../config.ts';
 import type { Enemy } from '../enemy.ts';
 import type { BallDef, Range } from '../types.ts';
 
@@ -759,7 +759,7 @@ const evolved: BallDef[] = [
         const pct = v(lv, [0.2, 0.2, 0.3]);
         e.bleed = 0;
         b.ring(e.cx, e.cy, TILE * 0.8, '#ff2242', 0.3);
-        b.damage(e, Math.max(1, e.hp * pct * (e.isBoss ? 0.25 : 1)), 'status');
+        b.damage(e, Math.max(1, e.hp * pct * (e.isBoss ? RULES.hemorrhageBossMul : 1)), 'status');
       }
       if (!e.dead) b.applyBleed(e, v(lv, [3, 4, 4]), 15);
     },
@@ -1704,9 +1704,10 @@ const evolved: BallDef[] = [
     color: '#262626',
     hit: [3.6, 6.8],
     recipes: [[['soulsucker'], ['heartswallower']]],
-    desc: (lv) => `撞击时有 ${v(lv, [10, 15, 15])}% 几率直接杀死敌人（首领除外），并为你回复 ${v(lv, [5, 5, 7])} 点生命`,
+    desc: (lv) =>
+      `撞击时有 ${v(lv, [10, 15, 15])}% 几率直接杀死敌人${RULES.reaperKillsBosses ? '' : '（首领除外）'}，并为你回复 ${v(lv, [5, 5, 7])} 点生命`,
     onHit: (b, _ball, e, lv) => {
-      if (e.dead || e.isBoss || !b.rng.chance(v(lv, [0.1, 0.15, 0.15]))) return;
+      if (e.dead || (e.isBoss && !RULES.reaperKillsBosses) || !b.rng.chance(v(lv, [0.1, 0.15, 0.15]))) return;
       b.execute(e, '收割');
       b.heal(v(lv, [5, 5, 7]));
     },

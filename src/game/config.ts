@@ -41,6 +41,7 @@ export const CFG = {
   critChanceBase: 0.03, // est.
   critPerDex: 0.005, // est.
   critMul: 2, // est.
+  intPowerPerPoint: 0.05, // est. AOE, status and passive power per INT point above 3 (the wiki's rank values contradict each other)
 
   // Enemies & level
   enemyBaseHp: 80, // est. a 1x enemy at the top of the BONExYARD (3–4 Warrior hits)
@@ -60,5 +61,24 @@ export const CFG = {
   ballSlots: 4,
   passiveSlots: 4,
 } as const;
+
+/**
+ * Rules where this remake once differed from the original (changed 2026-10-20, sources in docs/NOTES.md).
+ * Each entry says what it used to be: set it back to restore the old behaviour.
+ */
+export const RULES = {
+  /** Hemorrhage's %-of-current-health burst on bosses and minibosses. Was 0.25; the original deals it in full. */
+  hemorrhageBossMul: 1,
+  /** Reaper's instant kill also works on bosses and minibosses. Was false; the original allows it. */
+  reaperKillsBosses: true,
+  /** Most damage one hit can deal. Was Infinity (no cap); players report a 9999 cap in the original. */
+  maxHitDamage: 9999,
+  /** Everflowing Goblet's overheal cap, × max HP, now also applied when healing. Was only applied on level-ups. est. */
+  overhealCap: 3,
+  /** Wings of the Anointed keeps Fleet Feet's full speed while shooting. Was true; the original replaces it. */
+  wingsFullSpeedShooting: false,
+  /** Freeze lasts this fraction as long on bosses and minibosses. Unchanged; no source either way. est. */
+  bossFreezeMul: 0.3,
+};
 
 export const T = (tiles: number) => tiles * TILE;
