@@ -1,0 +1,6 @@
+#!/bin/sh
+# Format and type checks before every commit (enabled by `npm install` via core.hooksPath).
+npm run --silent check || {
+  echo "检查没通过：先运行 npm run format 整理格式，再修正类型错误。" >&2
+  exit 1
+}

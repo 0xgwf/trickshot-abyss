@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// Game data adapted from the BALL x PIT Wiki (ballxpit.wiki.gg, CC BY-SA 4.0) and the sources listed
+// in ATTRIBUTION.md; translated, condensed and partly estimated (see docs/NOTES.md).
+import type { CharacterDef } from '../types.ts';
+
+// Stats from dood.gg (the wiki lists them as "?"). Only The Warrior is available at the start; the others'
+// house blueprints drop in the BONExYARD / SNOWYxSHORES, so here they unlock when that level is cleared.
+export const CHARACTERS: CharacterDef[] = [
+  {
+    id: 'warrior',
+    zh: '战士',
+    en: 'The Warrior',
+    flavor: '一名四处漂泊的战士。',
+    ability: '默认角色，没有特殊玩法。',
+    startBall: 'bleed',
+    stats: { end: 6, str: 7, lea: 4, spd: 3, dex: 4, int: 3 },
+    color: '#d8c39a',
+    unlock: 'default',
+  },
+  {
+    id: 'itchy',
+    zh: '快枪手',
+    en: 'The Itchy Finger',
+    flavor: '一名声名狼藉的副警长。',
+    ability: '瞄准散乱，但射速翻倍，只要有球就会持续发射。射击时也能全速移动。',
+    startBall: 'burn',
+    stats: { end: 4, str: 2, lea: 5, spd: 3, dex: 5, int: 2 },
+    color: '#e0a060',
+    unlock: 'boneyard',
+  },
+  {
+    id: 'repentant',
+    zh: '忏悔者',
+    en: 'The Repentant',
+    flavor: '一个满怀悔恨的可怜人。',
+    ability: '弹珠每次反弹伤害提高 5%。弹珠碰到坑道顶端后会直接飞回你身边，沿途伤害穿过的每个敌人。',
+    startBall: 'freeze',
+    stats: { end: 4, str: 3, lea: 6, spd: 7, dex: 4, int: 5 },
+    color: '#9fc4e0',
+    unlock: 'boneyard',
+  },
+  {
+    id: 'cohabitants',
+    zh: '夫妇',
+    en: 'The Cohabitants',
+    flavor: '一对有很多很多孩子的夫妇。',
+    ability: '每发射一颗弹珠，都会向镜像方向再发射一颗复制品。弹珠伤害减半。',
+    startBall: 'broodmother',
+    stats: { end: 8, str: 3, lea: 6, spd: 4, dex: 3, int: 4 },
+    color: '#e0a0c0',
+    unlock: 'boneyard',
+  },
+  {
+    id: 'cogitator',
+    zh: '沉思者',
+    en: 'The Cogitator',
+    flavor: '一位陷入沉思的杰出哲学家。',
+    ability: '升级时自动帮你选择。',
+    startBall: 'laserv',
+    stats: { end: 5, str: 5, lea: 5, spd: 5, dex: 5, int: 5 },
+    color: '#c0a8e0',
+    unlock: 'snowy',
+  },
+  {
+    id: 'embedded',
+    zh: '顽固老兵',
+    en: 'The Embedded',
+    flavor: '身经百战，静候下一次任务。',
+    ability: '弹珠在碰到墙壁之前总是会穿透敌人。',
+    startBall: 'poison',
+    stats: { end: 3, str: 4, lea: 4, spd: 4, dex: 5, int: 3 },
+    color: '#90b070',
+    unlock: 'snowy',
+  },
+  {
+    id: 'emptynester',
+    zh: '空巢老人',
+    en: 'The Empty Nester',
+    flavor: '终于可以清静一下了。',
+    ability: '没有迷你弹珠。每次射击会同时射出多颗相同的特殊弹珠。',
+    startBall: 'ghost',
+    stats: { end: 6, str: 7, lea: 3, spd: 5, dex: 5, int: 6 },
+    color: '#d0c0a0',
+    unlock: 'snowy',
+  },
+];

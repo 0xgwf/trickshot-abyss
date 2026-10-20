@@ -1,0 +1,9 @@
+dist
+node_modules
+/data/
+package-lock.json
+*.md
+*.log
+LICENSE
+LICENSES
+private

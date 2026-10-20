@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>弹无虚坑 · Trickshot Abyss</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23e0334f'/%3E%3Crect x='4' y='4' width='3' height='3' fill='%23fff'/%3E%3C/svg%3E"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0d0a14;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none;
+        image-rendering: pixelated;
+        cursor: crosshair;
+      }
+      .name-input {
+        position: absolute;
+        display: none;
+        box-sizing: border-box;
+        padding: 0 10px;
+        text-align: center;
+        background: #1d1713;
+        color: #f2e6cc;
+        border: 2px solid #c9a25e;
+        outline: none;
+        border-radius: 0;
+        font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "name": "trickshot-abyss",
+  "private": true,
+  "version": "0.1.0",
+  "description": "弹无虚坑 Trickshot Abyss：浏览器里的弹珠肉鸽，玩法致敬 BALL x PIT",
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/0xgwf/trickshot-abyss",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xgwf/trickshot-abyss.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0xgwf/trickshot-abyss/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "serve": "node server.mjs",
+    "start": "npm run build && npm run serve",
+    "check": "prettier --check . && tsc --noEmit",
+    "format": "prettier --write .",
+    "sim": "node tools/sim.ts",
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "playwright-core": "^1.64.1",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}
