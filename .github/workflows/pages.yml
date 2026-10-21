@@ -1,11 +1,10 @@
 name: Pages
 
-# Publishes the single-player game to GitHub Pages on every push to main.
+# Publishes the single-player game to GitHub Pages, only when run by hand:
+# Actions → Pages → Run workflow (pick the branch, normally main).
 # One-time setup: Settings → Pages → Build and deployment → Source: GitHub Actions.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
