@@ -212,27 +212,82 @@ export class Versus {
     return button(ctx, input, VIEW_W / 2 - 110, 420, 220, 56, '返回', { size: 20 }) || input.wasPressed('Escape');
   }
 
-  /** The verdict once the local run is over; returns true when the player wants to leave. */
-  drawResult(ctx: CanvasRenderingContext2D, input: Input) {
-    const b = this.battle!;
-    const me: Result = { won: b.phase === 'won', progress: progressOf(b), time: b.t };
+  /** The match result, decided the moment either run ends or the opponent leaves; the first call stands. */
+  verdict: { title: string; win: boolean } | null = null;
+  /** The player chose to finish their run after the verdict. */
+  private playingOn = false;
+  /** The Esc menu during a match. */
+  private menu = false;
+
+  private decide() {
+    const b = this.battle;
+    if (this.verdict || !b) return;
     const opp = this.oppOver;
-    let title: string;
-    let win: boolean | null = null;
-    if (this.oppLeft && !opp) [title, win] = ['对手离开了', true];
-    else if (me.won && !(opp?.won && opp.time < me.time)) [title, win] = ['你先通关，获胜！', true];
-    else if (opp?.won) [title, win] = ['对手先通关了', false];
-    else if (!opp) title = '你倒下了，等待对手结束…';
-    else [title, win] = me.progress >= opp.progress ? ['你坚持得更远，获胜！', true] : ['对手坚持得更远', false];
-    ctx.fillStyle = 'rgba(6,4,6,0.7)';
-    ctx.fillRect(0, TOP, VIEW_W / 2 - 1, FIELD_H);
+    if (b.phase === 'won') this.verdict = opp?.won ? { title: '对手先通关了', win: false } : { title: '你先通关，获胜！', win: true };
+    else if (opp?.won) this.verdict = { title: '对手先通关了', win: false };
+    else if (opp) this.verdict = { title: '对手倒下了，你获胜！', win: true };
+    else if (this.oppLeft) this.verdict = { title: '对手离开了，你获胜！', win: true };
+    else if (b.phase === 'lost') this.verdict = { title: '你倒下了，对手获胜', win: false };
+  }
+
+  /** An overlay covers your field: the verdict (until you choose to play on) or the Esc menu. */
+  get blocking() {
+    const b = this.battle;
+    if (!b) return false;
+    const over = b.phase === 'won' || b.phase === 'lost';
+    return this.menu || (this.verdict !== null && (over || !this.playingOn));
+  }
+
+  /** Your own run waits while an overlay is up; the opponent's keeps going. */
+  get paused() {
+    return this.battle?.phase === 'play' && this.blocking;
+  }
+
+  /** The verdict, the Esc menu or the "decided" hint. Returns 'leave' to go back to the title. */
+  drawOverlay(ctx: CanvasRenderingContext2D, input: Input): 'leave' | null {
+    this.decide();
+    const b = this.battle!;
+    const over = b.phase === 'won' || b.phase === 'lost';
+    const esc = input.wasPressed('Escape');
     const cx = VIEW_W / 4;
-    text(ctx, title, cx, 260, { size: 30, align: 'center', color: win === null ? C.text : win ? C.gold : C.red, lw: 8 });
-    text(ctx, `进度 ${Math.round(me.progress * 100)}%${opp ? ` · 对手 ${Math.round(opp.progress * 100)}%` : ''}`, cx, 300, {
-      size: 18,
-      align: 'center',
-      color: C.dim,
-    });
-    return button(ctx, input, cx - 110, 360, 220, 56, '返回标题', { size: 20 });
+    const shade = () => {
+      ctx.fillStyle = 'rgba(6,4,6,0.72)';
+      ctx.fillRect(0, TOP, VIEW_W / 2 - 1, FIELD_H);
+    };
+    if (this.verdict && (over || !this.playingOn)) {
+      shade();
+      const v = this.verdict;
+      text(ctx, v.title, cx, 250, { size: 32, align: 'center', color: v.win ? C.gold : C.red, lw: 8 });
+      const opp = this.oppOver;
+      text(ctx, `进度 ${Math.round(progressOf(b) * 100)}%${opp ? ` · 对手 ${Math.round(opp.progress * 100)}%` : ''}`, cx, 290, {
+        size: 18,
+        align: 'center',
+        color: C.dim,
+      });
+      let y = 340;
+      if (!over) {
+        if (button(ctx, input, cx - 130, y, 260, 56, '继续打完这一局', { size: 20 })) this.playingOn = true;
+        y += 72;
+      }
+      text(ctx, 'Esc 返回标题', cx, y + 92, { size: 14, align: 'center', color: C.dim });
+      return button(ctx, input, cx - 130, y, 260, 56, '返回标题', { size: 20 }) || esc ? 'leave' : null;
+    }
+    if (this.verdict) {
+      text(ctx, `${this.verdict.win ? '你赢了' : '你输了'} · Esc 返回标题`, cx, TOP + 40, { size: 16, align: 'center', color: C.dim });
+      return esc ? 'leave' : null;
+    }
+    if (esc && b.phase === 'play') this.menu = !this.menu;
+    if (!this.menu) return null;
+    shade();
+    text(ctx, '暂停', cx, 220, { size: 40, align: 'center', color: C.gold, lw: 8 });
+    text(ctx, '只有你自己的这一局暂停，对手照常进行', cx, 258, { size: 15, align: 'center', color: C.dim });
+    if (button(ctx, input, cx - 130, 300, 260, 56, '继续', { size: 20 })) this.menu = false;
+    if (button(ctx, input, cx - 130, 372, 260, 56, '认输并返回标题', { size: 20 })) {
+      // The opponent wins: tell them the run is over.
+      this.sentOver = true;
+      this.socket.send({ t: 'over', won: false, progress: progressOf(b), time: b.t });
+      return 'leave';
+    }
+    return null;
   }
 }

@@ -18,6 +18,46 @@ export const C = {
   cyan: '#7ad8ff',
 };
 
+/** Kind colours: balls are what you shoot (active), passives are always-on effects. */
+export const KIND = { ball: '#5ec8ff', passive: '#c79bff', heal: '#6dff8a' } as const;
+
+/** Seconds, for animated frames. */
+const clock = () => performance.now() / 1000;
+
+/** A shifting rainbow across a box, for evolved items. */
+function rainbow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  const t = clock();
+  for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${(i * 60 + t * 90) % 360}, 90%, 66%)`);
+  return g;
+}
+
+/**
+ * The inner frame of a slot or card, in the kind colour; gold and glowing at max level, a moving rainbow
+ * when evolved. `faint` marks an empty slot.
+ */
+export function accent(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  o: { lv?: number; evolved?: boolean; faint?: boolean; inset?: number } = {},
+) {
+  const i = o.inset ?? 6;
+  ctx.save();
+  if (o.faint) ctx.globalAlpha = 0.35;
+  ctx.lineWidth = o.evolved || o.lv === 3 ? 3 : 2;
+  ctx.strokeStyle = o.evolved ? rainbow(ctx, x, y, w, h) : o.lv === 3 ? C.gold : color;
+  if (o.evolved || o.lv === 3) {
+    ctx.shadowColor = o.evolved ? '#ffffff' : C.gold;
+    ctx.shadowBlur = 10;
+  }
+  ctx.strokeRect(x + i, y + i, w - i * 2, h - i * 2);
+  ctx.restore();
+}
+
 /** Lightens dark colours so they stay readable on the dark panels. */
 export function readable(hex: string) {
   const m = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -158,30 +198,43 @@ export function ballIcon(ctx: CanvasRenderingContext2D, parts: Part[], cx: numbe
   }
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.fillRect(cx - r * 0.5, cy - r * 0.55, r * 0.4, r * 0.4);
-  ctx.strokeStyle = evolved ? C.gold : 'rgba(0,0,0,0.5)';
-  ctx.lineWidth = evolved ? 3 : 2;
+  ctx.save();
+  if (evolved) {
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = r * 0.6;
+  }
+  ctx.strokeStyle = evolved ? rainbow(ctx, cx - r, cy - r, r * 2, r * 2) : 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = evolved ? Math.max(3, r * 0.18) : 2;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
+  ctx.restore();
 }
 
 export function passiveIcon(ctx: CanvasRenderingContext2D, def: PassiveDef, x: number, y: number, s: number) {
-  ctx.fillStyle = def.evolved ? '#3a2a10' : '#2a2018';
+  ctx.fillStyle = def.evolved ? '#2e1f3e' : '#241a2c';
   ctx.fillRect(x, y, s, s);
-  ctx.strokeStyle = def.evolved ? C.gold : C.bronzeHi;
-  ctx.lineWidth = 2;
+  ctx.save();
+  if (def.evolved) {
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = s * 0.2;
+  }
+  ctx.strokeStyle = def.evolved ? rainbow(ctx, x, y, s, s) : KIND.passive;
+  ctx.lineWidth = def.evolved ? 3 : 2;
   ctx.strokeRect(x + 1, y + 1, s - 2, s - 2);
+  ctx.restore();
   text(ctx, [...def.zh][0], x + s / 2, y + s / 2 + 1, {
     size: s * 0.5,
     align: 'center',
     baseline: 'middle',
-    color: def.evolved ? C.gold : '#e8d0a0',
+    color: def.evolved ? '#fff4d8' : '#e6d4ff',
   });
 }
 
-export function pips(ctx: CanvasRenderingContext2D, lv: number, x: number, y: number) {
+/** Level pips in the kind colour; all gold once maxed. `size` scales them up for cards. */
+export function pips(ctx: CanvasRenderingContext2D, lv: number, x: number, y: number, color: string = C.gold, size = 7) {
   for (let i = 0; i < 3; i++) {
-    ctx.fillStyle = i < lv ? C.gold : 'rgba(255,255,255,0.15)';
-    ctx.fillRect(x + i * 9, y, 7, 7);
+    ctx.fillStyle = i < lv ? (lv >= 3 ? C.gold : color) : 'rgba(255,255,255,0.15)';
+    ctx.fillRect(x + i * (size + 2), y, size, size);
   }
 }
