@@ -129,7 +129,7 @@ export class Versus {
     const b = this.battle!;
     ctx.fillStyle = '#0c0a0a';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    this.field(ctx, this.world, b, LEFT_X);
+    this.field(ctx, this.world, b, LEFT_X, !this.blocking);
     if (this.ghost && this.oppSeen) this.field(ctx, this.oppWorld, this.ghost, RIGHT_X);
     else text(ctx, '等待对手的画面…', VIEW_W * 0.75, VIEW_H / 2, { size: 22, align: 'center', color: C.dim });
     ctx.fillStyle = '#3a3028';
@@ -168,7 +168,7 @@ export class Versus {
   }
 
   /** One field, scaled into its half, with damage numbers, the banner and the boss bar on top. */
-  private field(ctx: CanvasRenderingContext2D, world: WorldRenderer, b: Battle, x: number) {
+  private field(ctx: CanvasRenderingContext2D, world: WorldRenderer, b: Battle, x: number, banner = true) {
     const s = SPLIT_SCALE;
     world.draw(b);
     ctx.imageSmoothingEnabled = false;
@@ -180,7 +180,7 @@ export class Versus {
     }
     ctx.globalAlpha = 1;
     const ban = b.stage.banner;
-    if (ban) text(ctx, ban.text, x + FIELD_W / 2, TOP + FIELD_H * 0.3, { size: 30, align: 'center', color: C.gold, lw: 8 });
+    if (ban && banner) text(ctx, ban.text, x + FIELD_W / 2, TOP + FIELD_H * 0.3, { size: 30, align: 'center', color: C.gold, lw: 8 });
     const boss = b.stage.bossBar;
     if (boss) {
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
