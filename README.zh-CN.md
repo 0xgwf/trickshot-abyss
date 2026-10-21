@@ -40,6 +40,10 @@
 
 还没做的：其余 6 层关卡、小镇建造和局外成长、更多角色。
 
+## 在线试玩
+
+单机版可以发布到 GitHub Pages：<https://0xgwf.github.io/trickshot-abyss/>。这是不带服务端的同一个构建，所以没有排行榜，进度保存在各自的浏览器里。只有手动运行 Pages 工作流（Actions → Pages → Run workflow）时才会更新，网站上一直是你最后一次选择分享的版本。
+
 ## 运行与部署
 
 需要 Node.js 22.18 或更高版本。
