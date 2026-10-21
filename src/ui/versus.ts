@@ -28,6 +28,8 @@ const KILLS_PER_ROW = 25;
 
 interface Result {
   won: boolean;
+  /** Gave up from the menu. */
+  quit?: boolean;
   progress: number;
   time: number;
 }
@@ -78,7 +80,7 @@ export class Versus {
         applySnapshot(this.ghost, m.s as Parameters<typeof applySnapshot>[1]);
         this.oppSeen = true;
       } else if (m.t === 'garbage') this.battle?.stage.addGarbage(m.n as number);
-      else if (m.t === 'oppOver') this.oppOver = { won: !!m.won, progress: m.progress as number, time: m.time as number };
+      else if (m.t === 'oppOver') this.oppOver = { won: !!m.won, quit: !!m.quit, progress: m.progress as number, time: m.time as number };
       else if (m.t === 'oppLeft') this.oppLeft = true;
     }
     if (this.socket.state === 'closed' && this.state !== 'playing') this.state = 'closed';
@@ -148,7 +150,15 @@ export class Versus {
     );
 
     // The opponent's end, drawn over their half.
-    const oppMsg = this.oppLeft ? '对手离开了' : this.oppOver ? (this.oppOver.won ? '对手通关了！' : '对手倒下了') : '';
+    const oppMsg = this.oppLeft
+      ? '对手离开了'
+      : this.oppOver
+        ? this.oppOver.won
+          ? '对手通关了！'
+          : this.oppOver.quit
+            ? '对手认输了'
+            : '对手倒下了'
+        : '';
     if (oppMsg) {
       ctx.fillStyle = 'rgba(6,4,6,0.6)';
       ctx.fillRect(VIEW_W / 2 + 1, TOP, VIEW_W / 2, FIELD_H);
@@ -225,7 +235,7 @@ export class Versus {
     const opp = this.oppOver;
     if (b.phase === 'won') this.verdict = opp?.won ? { title: '对手先通关了', win: false } : { title: '你先通关，获胜！', win: true };
     else if (opp?.won) this.verdict = { title: '对手先通关了', win: false };
-    else if (opp) this.verdict = { title: '对手倒下了，你获胜！', win: true };
+    else if (opp) this.verdict = { title: opp.quit ? '对手认输了，你获胜！' : '对手倒下了，你获胜！', win: true };
     else if (this.oppLeft) this.verdict = { title: '对手离开了，你获胜！', win: true };
     else if (b.phase === 'lost') this.verdict = { title: '你倒下了，对手获胜', win: false };
   }
@@ -285,7 +295,7 @@ export class Versus {
     if (button(ctx, input, cx - 130, 372, 260, 56, '认输并返回标题', { size: 20 })) {
       // The opponent wins: tell them the run is over.
       this.sentOver = true;
-      this.socket.send({ t: 'over', won: false, progress: progressOf(b), time: b.t });
+      this.socket.send({ t: 'over', won: false, quit: true, progress: progressOf(b), time: b.t });
       return 'leave';
     }
     return null;
