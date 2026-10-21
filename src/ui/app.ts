@@ -180,11 +180,12 @@ export class App {
   }
 
   isUnlocked(c: CharacterDef) {
-    return c.unlock === 'default' || this.unlocks.has(c.unlock);
+    // Versus opens every character, so both players can pick freely.
+    return this.pickMode === 'versus' || c.unlock === 'default' || this.unlocks.has(c.unlock);
   }
 
   levelOpen(l: LevelDef) {
-    return !l.requires || this.unlocks.has(l.requires);
+    return this.pickMode === 'versus' || !l.requires || this.unlocks.has(l.requires);
   }
 
   startRun() {
@@ -242,7 +243,7 @@ export class App {
 
   startVersus() {
     const char = CHARACTERS[this.charIdx];
-    this.versus = new Versus(load('name') || '无名氏', char, LEVELS[this.levelIdx].id, this.unlocks);
+    this.versus = new Versus(load('name') || '无名氏', char, LEVELS[this.levelIdx].id);
     this.battle = null;
     this.screen = 'versus';
     this.reactorView = 'main';

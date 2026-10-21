@@ -21,6 +21,8 @@ const FIELD_H = WORLD_H * SPLIT_SCALE;
 const LEFT_X = (VIEW_W / 2 - FIELD_W) / 2;
 const RIGHT_X = VIEW_W / 2 + LEFT_X;
 const SNAP_RATE = 20;
+/** Both players get every ball and passive unlock, so the level-up pools match. */
+const ALL_UNLOCKS = new Set(['boneyard', 'snowy']);
 /** Kills that send one row to the opponent; beating a miniboss sends two. */
 const KILLS_PER_ROW = 25;
 
@@ -53,13 +55,11 @@ export class Versus {
   private readonly world = new WorldRenderer();
   private readonly oppWorld = new WorldRenderer();
   private readonly char: CharacterDef;
-  private readonly unlocks: Set<string>;
   readonly name: string;
 
-  constructor(name: string, char: CharacterDef, level: string, unlocks: Set<string>) {
+  constructor(name: string, char: CharacterDef, level: string) {
     this.name = name;
     this.char = char;
-    this.unlocks = unlocks;
     this.socket = new Socket({ t: 'join', mode: 'versus', name, char: char.id, level });
   }
 
@@ -70,8 +70,8 @@ export class Versus {
       else if (m.t === 'start') {
         const opp = m.opp as { name: string; char: string };
         const oppChar = CHARACTERS.find((c) => c.id === opp.char) ?? CHARACTERS[0];
-        this.battle = new Battle(this.char, m.seed as number, this.unlocks, m.level as string);
-        this.ghost = new Battle(oppChar, m.seed as number, this.unlocks, m.level as string);
+        this.battle = new Battle(this.char, m.seed as number, ALL_UNLOCKS, m.level as string);
+        this.ghost = new Battle(oppChar, m.seed as number, ALL_UNLOCKS, m.level as string);
         this.oppName = opp.name;
         this.state = 'playing';
       } else if (m.t === 'opp' && this.ghost) {
@@ -204,7 +204,11 @@ export class Versus {
           : '正在连接…';
     text(ctx, '局域网对战', VIEW_W / 2, 220, { size: 48, align: 'center', color: C.gold, lw: 10 });
     text(ctx, msg, VIEW_W / 2, 300, { size: 22, align: 'center', color: C.text });
-    text(ctx, '另一台电脑打开同一个网址，选择「局域网对战」就会自动配对。', VIEW_W / 2, 340, { size: 16, align: 'center', color: C.dim });
+    text(ctx, '另一台电脑打开同一个网址，选择「局域网对战」就会自动配对。关卡以先进来的人选的为准。', VIEW_W / 2, 340, {
+      size: 16,
+      align: 'center',
+      color: C.dim,
+    });
     return button(ctx, input, VIEW_W / 2 - 110, 420, 220, 56, '返回', { size: 20 }) || input.wasPressed('Escape');
   }
 

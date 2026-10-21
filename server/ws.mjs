@@ -128,6 +128,12 @@ export function acceptWebSocket(req, socket) {
     open = false;
     conn.onClose();
   };
+  // node:http sockets allow half-open connections, so a peer that just disappears (crashed browser,
+  // pulled cable) only shows up as 'end'; close our side too.
+  socket.on('end', () => {
+    gone();
+    socket.end();
+  });
   socket.on('close', gone);
   socket.on('error', gone);
   // Detect dead peers (browsers answer pings automatically).
