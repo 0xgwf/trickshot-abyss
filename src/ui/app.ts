@@ -266,8 +266,8 @@ export class App {
     input.joystickEnabled = b.phase === 'play';
     input.joystickMaxX = VIEW_W / 4;
     if (b.phase === 'play' && (input.wasPressed('KeyF') || input.clicked(1))) b.autofire = !b.autofire;
-    // No pause and no speed-up in versus: both runs keep the same pace.
-    b.update(dt, v.controls(input, b));
+    // No speed-up in versus, so both runs keep the same pace; pausing only stops your own run.
+    if (!v.paused) b.update(dt, v.controls(input, b));
     for (const ev of b.events) this.sfx(ev.type as Sfx);
     b.events.length = 0;
     v.afterUpdate(dt);
@@ -276,9 +276,9 @@ export class App {
       this.overlaySince = this.t;
     }
     v.draw(ctx, input);
-    if (b.phase === 'levelup') this.drawLevelUp(ctx, b);
-    else if (b.phase === 'reactor') this.drawReactor(ctx, b);
-    else if ((b.phase === 'won' || b.phase === 'lost') && v.drawResult(ctx, input)) this.leaveVersus();
+    if (!v.blocking && b.phase === 'levelup') this.drawLevelUp(ctx, b);
+    else if (!v.blocking && b.phase === 'reactor') this.drawReactor(ctx, b);
+    if (v.drawOverlay(ctx, input) === 'leave') this.leaveVersus();
   }
 
   // ---------------------------------------------------------------- battle
