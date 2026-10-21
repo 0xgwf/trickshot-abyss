@@ -328,6 +328,11 @@ export class App {
     }
     if (c.state === 'ended' || g.phase === 'won' || g.phase === 'lost') {
       if (c.drawEnd(ctx, input)) this.leaveCoop();
+      return;
+    }
+    if (input.wasPressed('Escape')) c.menu = !c.menu;
+    if (c.menu) {
+      if (c.drawMenu(ctx, input) === 'leave') this.leaveCoop();
     } else if (g.phase === 'levelup' && g.offers) {
       if (c.chooser === c.you) this.drawLevelUp(ctx, g, (i) => c.pick(i));
       else c.drawWaiting(ctx);

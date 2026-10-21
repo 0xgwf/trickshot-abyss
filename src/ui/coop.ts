@@ -153,6 +153,18 @@ export class Coop {
     return null;
   }
 
+  /** The Esc menu: the run goes on (it's on the server); leaving hands your body to the autopilot. */
+  menu = false;
+
+  drawMenu(ctx: CanvasRenderingContext2D, input: Input): 'leave' | null {
+    ctx.fillStyle = 'rgba(6,4,6,0.6)';
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    text(ctx, '菜单', VIEW_W / 2, 220, { size: 40, align: 'center', color: C.gold, lw: 8 });
+    text(ctx, '合作不会暂停；离开后你的角色由自动驾驶接管', VIEW_W / 2, 258, { size: 15, align: 'center', color: C.dim });
+    if (button(ctx, input, VIEW_W / 2 - 130, 300, 260, 56, '继续', { size: 20 })) this.menu = false;
+    return button(ctx, input, VIEW_W / 2 - 130, 372, 260, 56, '离开房间', { size: 20 }) ? 'leave' : null;
+  }
+
   /** The end of the run; returns true when the player wants to leave. */
   drawEnd(ctx: CanvasRenderingContext2D, input: Input) {
     const g = this.ghost;
@@ -162,6 +174,7 @@ export class Coop {
     text(ctx, won ? '一起通关了！' : '队伍倒下了', VIEW_W / 2, 250, { size: 52, align: 'center', color: won ? C.gold : C.red, lw: 10 });
     if (g)
       text(ctx, `${this.names.join('、')} · Lv${g.lvl} · 击杀 ${g.kills}`, VIEW_W / 2, 300, { size: 20, align: 'center', color: C.dim });
-    return button(ctx, input, VIEW_W / 2 - 110, 360, 220, 56, '返回标题', { size: 20 });
+    text(ctx, 'Esc 返回标题', VIEW_W / 2, 440, { size: 14, align: 'center', color: C.dim });
+    return button(ctx, input, VIEW_W / 2 - 110, 360, 220, 56, '返回标题', { size: 20 }) || input.wasPressed('Escape');
   }
 }
