@@ -2,7 +2,7 @@ import type { Input } from '../core/input.ts';
 import { VIEW_W } from '../core/view.ts';
 import type { Battle } from '../game/battle.ts';
 import { CFG, WORLD_H, WORLD_W } from '../game/config.ts';
-import { C, ballIcon, hover, panel, paragraph, passiveIcon, pips, readable, text, wrap } from './draw.ts';
+import { C, KIND, accent, ballIcon, hover, panel, paragraph, passiveIcon, pips, readable, text, wrap } from './draw.ts';
 
 /** Screen x of the world's left edge. */
 export const FX = (VIEW_W - WORLD_W) / 2;
@@ -30,15 +30,19 @@ export function drawHud(ctx: CanvasRenderingContext2D, b: Battle, input: Input, 
   text(ctx, fmtTime(b.t), 196, 33, { size: 18, color: C.dim });
 
   // ---- ball slots
-  text(ctx, '弹珠', 18, 64, { size: 15, color: C.dim });
+  text(ctx, '弹珠 · 主动', 18, 64, { size: 15, color: KIND.ball });
   const slots = Math.max(CFG.ballSlots, b.owned.length);
   for (let i = 0; i < slots; i++) {
     const x = 16 + (i % 4) * 66;
     const y = 72 + Math.floor(i / 4) * 78;
     const ob = b.owned[i];
     panel(ctx, x, y, 58, 58, false, 0.85);
-    if (!ob) continue;
+    if (!ob) {
+      accent(ctx, x, y, 58, 58, KIND.ball, { faint: true });
+      continue;
+    }
     const evolved = ob.parts.some((p) => p.def.evolved);
+    accent(ctx, x, y, 58, 58, KIND.ball, { lv: ob.fused ? 0 : ob.parts[0].lv, evolved });
     ballIcon(ctx, ob.parts, x + 29, y + 29, 16, evolved);
     if (ob.state === 'cooldown') {
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -49,11 +53,11 @@ export function drawHud(ctx: CanvasRenderingContext2D, b: Battle, input: Input, 
       ctx.fillRect(x + 4, y + 4, 50, 50);
     }
     if (ob.fused) text(ctx, '融合', x + 29, y + 54, { size: 11, align: 'center', color: C.gold });
-    else pips(ctx, ob.parts[0].lv, x + 16, y + 62);
+    else pips(ctx, ob.parts[0].lv, x + 16, y + 62, KIND.ball);
     if (hover(input, x, y, 58, 58)) {
       tip = {
         title: ob.parts.map((p) => p.def.zh).join(' × '),
-        sub: ob.fused ? '融合弹珠' : `${ob.parts[0].def.en} · Lv${ob.parts[0].lv}${evolved ? ' · 进化' : ''}`,
+        sub: ob.fused ? '主动 · 融合弹珠' : `主动 · ${ob.parts[0].def.en} · Lv${ob.parts[0].lv}${evolved ? ' · 进化' : ''}`,
         body: ob.parts.map((p) => p.def.desc(p.lv)).join('\n'),
         color: ob.parts[0].def.color,
       };
@@ -62,17 +66,27 @@ export function drawHud(ctx: CanvasRenderingContext2D, b: Battle, input: Input, 
 
   // ---- passive slots
   const py0 = 72 + Math.ceil(slots / 4) * 78 + 14;
-  text(ctx, '被动', 18, py0 - 6, { size: 15, color: C.dim });
+  text(ctx, '被动 · 常驻', 18, py0 - 6, { size: 15, color: KIND.passive });
   const pslots = Math.max(CFG.passiveSlots, b.passives.length);
   for (let i = 0; i < pslots; i++) {
     const x = 16 + (i % 4) * 66;
     const y = py0 + Math.floor(i / 4) * 66;
     panel(ctx, x, y, 50, 50, false, 0.85);
     const p = b.passives[i];
-    if (!p) continue;
+    if (!p) {
+      accent(ctx, x, y, 50, 50, KIND.passive, { faint: true, inset: 5 });
+      continue;
+    }
+    if (p.lv >= 3 && !p.def.evolved) accent(ctx, x, y, 50, 50, KIND.passive, { lv: 3, inset: 3 });
     passiveIcon(ctx, p.def, x + 7, y + 7, 36);
-    pips(ctx, p.lv, x + 12, y + 53);
-    if (hover(input, x, y, 50, 50)) tip = { title: p.def.zh, sub: `${p.def.en} · Lv${p.lv}`, body: p.def.desc(p.lv), color: '#e8c070' };
+    pips(ctx, p.lv, x + 12, y + 53, KIND.passive);
+    if (hover(input, x, y, 50, 50))
+      tip = {
+        title: p.def.zh,
+        sub: `被动 · ${p.def.en} · Lv${p.lv}${p.def.evolved ? ' · 进化' : ''}`,
+        body: p.def.desc(p.lv),
+        color: KIND.passive,
+      };
   }
 
   // ---- stats
