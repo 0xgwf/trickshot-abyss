@@ -585,10 +585,10 @@ export class App {
       ['金币', `${b.gold}`],
     ];
     rows.forEach(([k, v], i) => {
-      text(ctx, k, VIEW_W / 2 - 120, 250 + i * 32, { size: 18, color: C.dim });
-      text(ctx, v, VIEW_W / 2 + 20, 250 + i * 32, { size: 18 });
+      text(ctx, k, VIEW_W / 2 - 120, 246 + i * 28, { size: 18, color: C.dim });
+      text(ctx, v, VIEW_W / 2 + 20, 246 + i * 28, { size: 18 });
     });
-    const by = 250 + rows.length * 32 + 6;
+    const by = 246 + rows.length * 28 + 6;
     b.owned.forEach((ob, i) =>
       ballIcon(
         ctx,
@@ -600,8 +600,13 @@ export class App {
       ),
     );
     b.passives.forEach((p, i) => passiveIcon(ctx, p.def, VIEW_W / 2 - 116 + i * 44, by + 34, 32));
+    // Two columns, so a first clear's long unlock list stays clear of the leaderboard box.
     this.newUnlocks.forEach((u, i) =>
-      text(ctx, `解锁 · ${u}`, VIEW_W / 2, by + 86 + i * 24, { size: 16, align: 'center', color: C.green }),
+      text(ctx, `解锁 · ${u}`, VIEW_W / 2 + (i % 2 ? 190 : -190), by + 80 + Math.floor(i / 2) * 22, {
+        size: 15,
+        align: 'center',
+        color: C.green,
+      }),
     );
     // Leaderboard submission
     const ly = 556;
@@ -620,11 +625,16 @@ export class App {
     }
     const y = 620;
     const typing = document.activeElement === this.nameInput;
-    if (button(ctx, this.input, VIEW_W / 2 - 280, y, 260, 56, '再来一局') || (!typing && this.input.wasPressed('Enter'))) this.startRun();
-    if (button(ctx, this.input, VIEW_W / 2 + 20, y, 260, 56, '选择角色')) {
+    if (button(ctx, this.input, VIEW_W / 2 - 410, y, 260, 56, '再来一局') || (!typing && this.input.wasPressed('Enter'))) this.startRun();
+    if (button(ctx, this.input, VIEW_W / 2 - 130, y, 260, 56, '选择角色')) {
       this.screen = 'select';
       this.battle = null;
     }
+    if (button(ctx, this.input, VIEW_W / 2 + 150, y, 260, 56, '返回标题') || (!typing && this.input.wasPressed('Escape'))) {
+      this.screen = 'title';
+      this.battle = null;
+    }
+    text(ctx, 'Enter 再来一局 · Esc 返回标题', VIEW_W / 2, y + 80, { size: 14, align: 'center', color: C.dim });
   }
 
   // ---------------------------------------------------------------- menus
