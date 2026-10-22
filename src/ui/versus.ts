@@ -185,10 +185,16 @@ export class Versus {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(world.canvas, x, TOP, FIELD_W, FIELD_H);
     ctx.imageSmoothingEnabled = true;
+    // Damage numbers stay inside the field (not over the status bar or the other half).
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, TOP, FIELD_W, FIELD_H);
+    ctx.clip();
     for (const t of b.texts) {
       ctx.globalAlpha = Math.min(1, t.life * 3);
       text(ctx, t.text, x + t.x * s, TOP + t.y * s, { size: Math.round(t.size * s), align: 'center', color: t.color });
     }
+    ctx.restore();
     ctx.globalAlpha = 1;
     const ban = b.stage.banner;
     if (ban && banner) text(ctx, ban.text, x + FIELD_W / 2, TOP + FIELD_H * 0.3, { size: 30, align: 'center', color: C.gold, lw: 8 });
