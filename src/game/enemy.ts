@@ -69,6 +69,8 @@ export class Enemy {
   colliders: Collider[] | null = null;
   invulnerable = false;
   dropsLoot = true;
+  /** Versus: part of a row the opponent sent (drops nothing, attacks nobody back). */
+  garbage = false;
 
   flash = 0;
   shake = 0;

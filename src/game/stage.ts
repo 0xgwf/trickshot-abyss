@@ -277,16 +277,29 @@ export class Stage {
     return out;
   }
 
-  /** Versus: queues `n` rows of the segment's basic enemy, with two gaps each, ahead of the next rows. */
-  addGarbage(n: number) {
+  /**
+   * Versus: `n` rows of this segment's basic enemy from the opponent land above the newest row, with one gap
+   * (the same column through the whole packet). They are extra: they don't count towards the checkpoint,
+   * and they land during miniboss and boss fights too. Garbage drops nothing.
+   */
+  landGarbage(n: number) {
+    const b = this.b;
     const cols = this.cols;
-    const id = Object.keys(this.level.weights[this.segment])[0];
-    const rows: Cell[][] = [];
-    for (let i = 0; i < n; i++) {
-      const holes = new Set([this.b.rng.int(0, cols - 1), this.b.rng.int(0, cols - 1)]);
-      rows.push(Array.from({ length: cols }, (_, c) => (holes.has(c) ? null : id)));
+    const def = ENEMIES[Object.keys(this.level.weights[this.segment])[0]];
+    const hole = b.rng.int(0, cols - 1);
+    const newest = -TILE + this.acc;
+    for (let j = 0; j < n; j++) {
+      const y = newest - (j + 1) * TILE;
+      for (let c = 0; c < cols; c++) {
+        const x = b.targetLeft + c * TILE;
+        if (c === hole || this.occupied(x, y, TILE, TILE)) continue;
+        const e = this.spawn(def, x, y);
+        e.garbage = true;
+        e.dropsLoot = false;
+      }
     }
-    this.pending.unshift(...rows);
+    // The level's own rows carry on behind them.
+    if (this.state === 'rows') this.acc -= n * TILE;
     this.banner = { text: `对手送来 ${n} 行敌人`, sub: 'Incoming rows', t: 1.6 };
   }
 

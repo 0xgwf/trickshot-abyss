@@ -34,6 +34,7 @@ export const CFG = {
   fireRatePerDex: 0.045, // est. fraction per DEX point relative to DEX 4
   returnSpeed: 5.5, // tiles/s for balls flying back after leaving the bottom (≈2–3 s round trip)
   recallAfter: 6, // s in flight before right-click recall is offered
+  liveChoiceTime: 8, // s a level-up choice waits beside the field in versus before it picks itself
   /** A fresh Warrior (STR 7) hits for 25–44 with a base ball: damage = STR × wiki range. */
   levelDamage: [1, 1.25, 1.5], // est. (wiki Damage page claims 133/167/200%, ball pages show flat)
   babyDamagePerLea: [2.75, 4.25], // → 11–17 at Leadership 4 (player report)

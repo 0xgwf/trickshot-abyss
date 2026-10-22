@@ -4,14 +4,16 @@
 import type { Input } from '../core/input.ts';
 import { VIEW_H, VIEW_W } from '../core/view.ts';
 import { Battle, type Controls } from '../game/battle.ts';
-import { WORLD_H, WORLD_W } from '../game/config.ts';
+import { CFG, WORLD_H, WORLD_W } from '../game/config.ts';
 import { CHARACTERS } from '../game/data/characters.ts';
+import { Duel } from '../game/duel.ts';
 import type { CharacterDef } from '../game/types.ts';
+import { offerTitle, type Offer } from '../game/upgrades.ts';
 import { Playback } from '../net/playback.ts';
 import { applySnapshot, takeSnapshot, type Snapshot } from '../net/snapshot.ts';
 import { Socket } from '../net/socket.ts';
 import { WorldRenderer } from '../render/world.ts';
-import { C, ballIcon, button, text } from './draw.ts';
+import { C, KIND, ballIcon, button, hover, panel, passiveIcon, readable, text } from './draw.ts';
 import { drawCrosshair } from './hud.ts';
 
 const TOP = 40;
@@ -24,8 +26,6 @@ const RIGHT_X = VIEW_W / 2 + LEFT_X;
 const SNAP_RATE = 30;
 /** Both players get every ball and passive unlock, so the level-up pools match. */
 const ALL_UNLOCKS = new Set(['boneyard', 'snowy']);
-/** Kills that send one row to the opponent; beating a miniboss sends two. */
-const KILLS_PER_ROW = 25;
 
 interface Result {
   won: boolean;
@@ -54,8 +54,8 @@ export class Versus {
   private oppLeft = false;
   private sentOver = false;
   private snapT = 0;
-  private rowsSent = 0;
-  private lastSegment = 0;
+  /** Versus rules for your run: attacks out, the opponent's rows in. */
+  duel: Duel | null = null;
   private readonly world = new WorldRenderer();
   private readonly oppWorld = new WorldRenderer();
   private readonly char: CharacterDef;
@@ -75,13 +75,15 @@ export class Versus {
         const opp = m.opp as { name: string; char: string };
         const oppChar = CHARACTERS.find((c) => c.id === opp.char) ?? CHARACTERS[0];
         this.battle = new Battle(this.char, m.seed as number, ALL_UNLOCKS, m.level as string);
+        this.battle.live = true;
+        this.duel = new Duel(this.battle);
         this.ghost = new Battle(oppChar, m.seed as number, ALL_UNLOCKS, m.level as string);
         this.oppName = opp.name;
         this.state = 'playing';
       } else if (m.t === 'opp' && this.ghost) {
         this.oppPlay.push(m.s as Snapshot);
         this.oppSeen = true;
-      } else if (m.t === 'garbage') this.battle?.stage.addGarbage(m.n as number);
+      } else if (m.t === 'garbage') this.duel?.receive(m.n as number);
       else if (m.t === 'oppOver') this.oppOver = { won: !!m.won, quit: !!m.quit, progress: m.progress as number, time: m.time as number };
       else if (m.t === 'oppLeft') this.oppLeft = true;
     }
@@ -113,14 +115,10 @@ export class Versus {
       this.snapT = Math.min(this.snapT - 1 / SNAP_RATE, 1 / SNAP_RATE);
       this.socket.send({ t: 'snap', s: takeSnapshot(b) });
     }
-    const byKills = Math.floor(b.kills / KILLS_PER_ROW);
-    if (byKills > this.rowsSent) {
-      this.socket.send({ t: 'attack', n: byKills - this.rowsSent });
-      this.rowsSent = byKills;
-    }
-    if (b.stage.segment > this.lastSegment) {
-      this.lastSegment = b.stage.segment;
-      this.socket.send({ t: 'attack', n: 2 });
+    const n = this.duel!.take();
+    if (n) {
+      this.socket.send({ t: 'attack', n });
+      b.text(b.player.x, b.player.y - 44, `送出 ${n} 行！`, C.gold, 18);
     }
     if ((b.phase === 'won' || b.phase === 'lost') && !this.sentOver) {
       this.sentOver = true;
@@ -169,6 +167,7 @@ export class Versus {
       ctx.fillRect(VIEW_W / 2 + 1, TOP, VIEW_W / 2, FIELD_H);
       text(ctx, oppMsg, VIEW_W * 0.75, VIEW_H / 2, { size: 34, align: 'center', color: this.oppOver?.won ? C.gold : C.text, lw: 8 });
     }
+    if (!this.blocking) this.drawChoices(ctx, input, b);
     if (b.phase === 'play' && input.mouseX < VIEW_W / 2) drawCrosshair(ctx, b, input);
   }
 
@@ -205,6 +204,61 @@ export class Versus {
     ctx.fillRect(x, 26, w, 8);
     ctx.fillStyle = p.hp / p.maxHp > 0.3 ? C.green : C.red;
     ctx.fillRect(x, 26, w * Math.max(0, Math.min(1, p.hp / p.maxHp)), 8);
+    // Experience towards the next level.
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(x, 35, w, 3);
+    ctx.fillStyle = C.cyan;
+    ctx.fillRect(x, 35, w * Math.max(0, Math.min(1, b.xp / b.xpNeeded)), 3);
+  }
+
+  /** Level-up offers wait in a strip at the top of your field while the run goes on: 1/2/3 or a click picks. */
+  private drawChoices(ctx: CanvasRenderingContext2D, input: Input, b: Battle) {
+    const offers = b.offers;
+    if (!offers || b.phase !== 'play') return;
+    const gap = 6;
+    const w = (FIELD_W - 8 - gap * (offers.length - 1)) / offers.length;
+    const h = 64;
+    const y = TOP + 6;
+    let chosen: Offer | null = null;
+    offers.forEach((o, i) => {
+      const x = LEFT_X + 4 + i * (w + gap);
+      const info = offerTitle(o);
+      const kind = o.kind === 'newBall' || o.kind === 'upBall' ? 'ball' : o.kind === 'heal' ? 'heal' : 'passive';
+      const hv = hover(input, x, y, w, h);
+      panel(ctx, x, y, w, h, hv, 0.88);
+      ctx.fillStyle = KIND[kind];
+      ctx.fillRect(x, y, 4, h);
+      const cx = x + 30;
+      const cy = y + h / 2;
+      if (o.kind === 'newBall' || o.kind === 'upBall') {
+        const def = o.kind === 'newBall' ? o.def : o.ob.parts[0].def;
+        ballIcon(ctx, [{ def, lv: info.lv }], cx, cy, 14, def.evolved);
+      } else if (o.kind === 'newPassive' || o.kind === 'upPassive')
+        passiveIcon(ctx, o.kind === 'newPassive' ? o.def : o.p.def, cx - 15, cy - 15, 30);
+      else {
+        ctx.fillStyle = C.green;
+        ctx.fillRect(cx - 4, cy - 12, 8, 24);
+        ctx.fillRect(cx - 12, cy - 4, 24, 8);
+      }
+      text(ctx, info.name, x + 52, y + 26, { size: 16, color: readable(info.color) });
+      const step =
+        o.kind === 'heal' ? '回复 20' : o.kind === 'newBall' || o.kind === 'newPassive' ? '新' : `Lv${info.lv - 1} → Lv${info.lv}`;
+      text(ctx, step, x + 52, y + 48, { size: 13, color: info.lv >= 3 ? C.gold : C.dim });
+      text(ctx, `${i + 1}`, x + w - 12, y + 20, { size: 15, align: 'right', color: C.dim });
+      if (input.wasPressed(`Digit${i + 1}`) || (hv && input.clicked(0))) chosen = o;
+    });
+    // Time left before it picks itself.
+    const left = Math.max(0, 1 - b.offersT / CFG.liveChoiceTime);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(LEFT_X + 4, y + h + 4, FIELD_W - 8, 4);
+    ctx.fillStyle = left > 0.3 ? C.cyan : C.red;
+    ctx.fillRect(LEFT_X + 4, y + h + 4, (FIELD_W - 8) * left, 4);
+    text(ctx, `升级（不会暂停）· 按 1–${offers.length} 选择`, LEFT_X + FIELD_W / 2, y + h + 24, {
+      size: 13,
+      align: 'center',
+      color: C.text,
+    });
+    if (chosen) b.choose(chosen);
   }
 
   /** Lobby and result screens; returns true when the player wants to leave. */
@@ -253,9 +307,9 @@ export class Versus {
     return this.menu || (this.verdict !== null && (over || !this.playingOn));
   }
 
-  /** Your own run waits while an overlay is up; the opponent's keeps going. */
+  /** Nothing pauses a running match (not choices, not the menu); only a decided one waits for you. */
   get paused() {
-    return this.battle?.phase === 'play' && this.blocking;
+    return this.battle?.phase === 'play' && this.verdict !== null && !this.playingOn;
   }
 
   /** The verdict, the Esc menu or the "decided" hint. Returns 'leave' to go back to the title. */
@@ -293,9 +347,10 @@ export class Versus {
     }
     if (esc && b.phase === 'play') this.menu = !this.menu;
     if (!this.menu) return null;
-    shade();
-    text(ctx, '暂停', cx, 220, { size: 40, align: 'center', color: C.gold, lw: 8 });
-    text(ctx, '只有你自己的这一局暂停，对手照常进行', cx, 258, { size: 15, align: 'center', color: C.dim });
+    ctx.fillStyle = 'rgba(6,4,6,0.45)';
+    ctx.fillRect(0, TOP, VIEW_W / 2 - 1, FIELD_H);
+    text(ctx, '菜单', cx, 220, { size: 40, align: 'center', color: C.gold, lw: 8 });
+    text(ctx, '对战不会暂停，你的这一局还在继续', cx, 258, { size: 15, align: 'center', color: C.text });
     if (button(ctx, input, cx - 130, 300, 260, 56, '继续', { size: 20 })) this.menu = false;
     if (button(ctx, input, cx - 130, 372, 260, 56, '认输并返回标题', { size: 20 })) {
       // The opponent wins: tell them the run is over.

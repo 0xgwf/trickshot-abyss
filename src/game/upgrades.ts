@@ -49,6 +49,10 @@ export function makeOffers(b: Battle): Offer[] {
   return b.rng.pickWeighted(cands, (c) => c.w, 3).map((c) => c.o);
 }
 
+/** The pick when nobody chooses (the Cogitator, a versus choice left too long): upgrade a ball, else a new ball. */
+export const autoOffer = (offers: Offer[]) =>
+  offers.find((o) => o.kind === 'upBall') ?? offers.find((o) => o.kind === 'newBall') ?? offers[0];
+
 export function applyOffer(b: Battle, o: Offer) {
   // Guard against a stale or double-applied choice.
   if (b.pendingLevelUps <= 0) return;
@@ -213,6 +217,21 @@ export function applyFusion(b: Battle, a: OwnedBall, c: OwnedBall) {
   b.owned.splice(Math.max(0, idx), 0, fused);
   b.queue.unshift(fused);
   b.pendingReactors--;
+}
+
+/** The bot's reactor choice: an evolution if any, else a fusion once 4 balls are owned, else fission. Says what it did. */
+export function autoReactor(b: Battle): string {
+  const evo = findEvolutions(b)[0];
+  if (evo) {
+    applyEvolution(b, evo);
+    return `进化 · ${evo.result.zh}`;
+  }
+  const pair = findFusions(b)[0];
+  if (pair && b.owned.length >= 4) {
+    applyFusion(b, ...pair);
+    return `融合 · ${pair[0].parts[0].def.zh} + ${pair[1].parts[0].def.zh}`;
+  }
+  return `裂变 · ${applyFission(b).join('，')}`;
 }
 
 export function applyEvolution(b: Battle, evo: Evolution) {

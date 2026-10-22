@@ -4,9 +4,19 @@ import { CFG, RULES, SEGMENT_COLS, TILE, WORLD_H, WORLD_W } from './config.ts';
 import { BALLS } from './data/balls.ts';
 import { levelById, type LevelDef } from './data/levels.ts';
 import { Enemy, type Dot } from './enemy.ts';
+import type { Duel } from './duel.ts';
 import { Stage } from './stage.ts';
 import type { BallDef, CharacterDef, DamageKind, DerivedStats, HitSide, Part, PassiveDef, Range } from './types.ts';
-import { applyOffer, makeOffers, makeReactorOptions, offerTitle, type Offer, type ReactorOption } from './upgrades.ts';
+import {
+  applyOffer,
+  autoOffer,
+  autoReactor,
+  makeOffers,
+  makeReactorOptions,
+  offerTitle,
+  type Offer,
+  type ReactorOption,
+} from './upgrades.ts';
 
 export interface Controls {
   moveX: number;
@@ -238,6 +248,15 @@ export class Battle {
   pendingReactors = 0;
   offers: Offer[] | null = null;
   reactor: ReactorOption[] | null = null;
+  /**
+   * Versus: choices never stop the run. Level-up offers wait beside the field (pick with `choose`) and pick
+   * themselves after CFG.liveChoiceTime; the Fusion Reactor resolves itself.
+   */
+  live = false;
+  /** How long the current live offers have been waiting. */
+  offersT = 0;
+  /** Versus rules for this player's run (attacks out, rows in), if any. */
+  duel: Duel | null = null;
 
   gold = 0;
   kills = 0;
@@ -415,6 +434,12 @@ export class Battle {
       return;
     }
     this.checkPending();
+    this.duel?.update(dt);
+    if (this.live && this.offers && (this.offersT += dt) >= CFG.liveChoiceTime) {
+      const o = autoOffer(this.offers);
+      this.text(this.player.x, this.player.y - 40, `自动选择 · ${offerTitle(o).name}`, '#7ad8ff', 15);
+      this.choose(o);
+    }
   }
 
   checkPending() {
@@ -423,7 +448,7 @@ export class Battle {
       // The Cogitator chooses upgrades by himself.
       while (this.pendingLevelUps > 0) {
         const offers = makeOffers(this);
-        const pick = offers.find((o) => o.kind === 'upBall') ?? offers.find((o) => o.kind === 'newBall') ?? offers[0];
+        const pick = autoOffer(offers);
         const t = offerTitle(pick);
         applyOffer(this, pick);
         this.text(this.player.x, this.player.y - 40, `${t.tag} ${t.name}`, '#7ad8ff', 16);
@@ -432,20 +457,34 @@ export class Battle {
       this.recomputeStats();
       this.syncBabies();
     }
-    if (this.pendingLevelUps > 0) {
+    if (this.pendingLevelUps > 0 && !(this.live && this.offers)) {
       this.offers = makeOffers(this);
+      this.offersT = 0;
       if (this.offers.length) {
-        this.phase = 'levelup';
         this.events.push({ type: 'levelup' });
+        if (this.live) return;
+        this.phase = 'levelup';
         return;
       }
+      this.offers = null;
       this.pendingLevelUps = 0;
     }
-    if (this.pendingReactors > 0) {
+    if (this.pendingReactors > 0 && this.live) {
+      while (this.pendingReactors > 0) this.text(this.player.x, this.player.y - 40, autoReactor(this), '#ffd76a', 15);
+      this.events.push({ type: 'reactor' });
+      this.recomputeStats();
+      this.syncBabies();
+    } else if (this.pendingReactors > 0) {
       this.reactor = makeReactorOptions(this);
       this.phase = 'reactor';
       this.events.push({ type: 'reactor' });
     }
+  }
+
+  /** Applies a level-up choice and carries on (live offers, or the UI after a paused choice). */
+  choose(o: Offer) {
+    applyOffer(this, o);
+    this.resume();
   }
 
   /** Called by the UI after a choice was applied. */
@@ -1025,6 +1064,7 @@ export class Battle {
     e.dead = true;
     this.kills++;
     this.events.push({ type: 'kill' });
+    this.duel?.onKill(e);
     this.burst(e.cx, e.cy, '#e8dcb0', e.isBoss ? 40 : 10);
     if (e.maggots) {
       const n = Math.round(this.roll(e.maggots));
