@@ -6,6 +6,7 @@ import { Battle } from '../src/game/battle.ts';
 import { CFG, TILE, WORLD_H } from '../src/game/config.ts';
 import { CHARACTERS } from '../src/game/data/characters.ts';
 import { ENEMIES } from '../src/game/data/enemies.ts';
+import { BALLS } from '../src/game/data/balls.ts';
 import { DUEL, Duel } from '../src/game/duel.ts';
 import { applySnapshot, takeSnapshot } from '../src/net/snapshot.ts';
 import { IDLE, arena, dummy } from './helpers.ts';
@@ -49,6 +50,21 @@ test('choose() applies a live offer and opens the next pending one', () => {
   assert.equal(b.pendingLevelUps, 1);
   assert.ok(b.offers?.length, 'the second level-up is offered');
   assert.equal(b.phase, 'play');
+});
+
+test('an open live offer that went stale (the ball was maxed meanwhile) is replaced, never applied', () => {
+  const b = arena();
+  b.live = true;
+  b.addBall(BALLS.bleed);
+  const ob = b.owned[0];
+  b.gainXp(b.xpNeeded);
+  step(b, 0.05);
+  b.offers = [{ kind: 'upBall', ob }];
+  ob.parts[0].lv = 3; // e.g. the Fusion Reactor's fission got there first
+  b.choose(b.offers[0]);
+  assert.equal(ob.parts[0].lv, 3);
+  assert.equal(b.pendingLevelUps, 1, 'the level-up is still owed');
+  assert.ok(b.offers?.length && !b.offers.some((o) => o.kind === 'upBall' && o.ob === ob), 'fresh offers');
 });
 
 test('the Fusion Reactor resolves itself in a live run', () => {
@@ -109,13 +125,14 @@ const streak = (b: Battle, n: number, garbage = false) => {
   }
 };
 
-test('kill streaks attack in chunks: under 5 kills sends nothing, every 5 more sends a row', () => {
+test('kill streaks attack in chunks: a short streak sends nothing, every few kills more send a row', () => {
   const b = arena();
   const duel = new Duel(b);
-  streak(b, 4);
+  const K = DUEL.killsPerRow;
+  streak(b, K - 1);
   duel.update(DUEL.streakGap);
   assert.equal(duel.take(), 0);
-  streak(b, 12);
+  streak(b, 2 * K + 1);
   duel.update(DUEL.streakGap / 2);
   assert.equal(duel.take(), 0, 'not while the streak is going');
   duel.update(DUEL.streakGap / 2);
@@ -137,12 +154,13 @@ test('only your own kills attack: garbage kills send nothing back; a miniboss se
 test('attacking cancels the rows waiting to land first, and only the rest goes out', () => {
   const b = arena();
   const duel = new Duel(b);
+  const K = DUEL.killsPerRow;
   duel.receive(3);
-  streak(b, 10);
+  streak(b, 2 * K);
   duel.update(DUEL.streakGap);
   assert.equal(duel.pending, 1);
   assert.equal(duel.take(), 0);
-  streak(b, 15);
+  streak(b, 3 * K);
   duel.update(DUEL.streakGap);
   assert.equal(duel.pending, 0);
   assert.equal(duel.take(), 2);
@@ -179,6 +197,29 @@ test("the opponent's meter and streak travel in snapshots", () => {
   assert.equal(shown.pending, 3);
   assert.equal(shown.streak, duel.streak);
   assert.ok(Math.abs(shown.incoming[0].t - duel.incoming[0].t) < 0.01);
+});
+
+test('margin time: later in the match attacks grow (fractions carry over) and incoming rows land sooner', () => {
+  const b = arena();
+  const duel = new Duel(b);
+  const K = DUEL.killsPerRow;
+  assert.equal(duel.margin, 0);
+  b.t = DUEL.marginStart + DUEL.marginStep; // step 2: attacks ×1.2² = ×1.44
+  duel.update(0);
+  assert.equal(duel.margin, 2);
+  assert.equal(duel.delay, DUEL.delay - 2 * DUEL.marginDelay);
+  let sent = 0;
+  for (let i = 0; i < 5; i++) {
+    streak(b, K);
+    duel.update(DUEL.streakGap);
+    sent += duel.take();
+  }
+  assert.equal(sent, Math.floor(5 * DUEL.marginAttack ** 2));
+});
+
+test('versus levels are shorter', () => {
+  const { b } = versus();
+  assert.equal(b.stage.segmentRows, DUEL.segmentRows);
 });
 
 test('garbage rows come down to the player like any other row', () => {

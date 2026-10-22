@@ -4,12 +4,32 @@
 import type { Battle } from './battle.ts';
 import type { Enemy } from './enemy.ts';
 
-/** Versus tuning: seconds and rows. */
+/**
+ * Versus tuning: seconds and rows. Tuned with tools/versus-sim.ts (40 bot matches per setting, 2026-10-22):
+ * matches last about 5 minutes, most end with a player going down and about a fifth by clearing the level,
+ * and a player who fires half as often loses about three in four.
+ */
 export const DUEL = {
+  /** Versus levels are shorter: rows between checkpoints (solo: CFG.segmentRows). */
+  segmentRows: 28,
+  /**
+   * Margin time, after Puyo Puyo: from this point of the match on, every step makes attacks bigger
+   * (fractions carry over) and lands incoming rows sooner, so stalling doesn't pay.
+   */
+  marginStart: 150,
+  marginStep: 40,
+  marginAttack: 1.2,
+  marginDelay: 0.3,
+  minDelay: 1,
+  /**
+   * Floor speed-up per margin step. Off: it hurts whoever is ahead most (they face the denser rows), so the
+   * player behind won more often in the simulations.
+   */
+  marginScroll: 0,
   /** A kill streak ends after this long without a kill, and then attacks. */
   streakGap: 2,
-  /** Kills in one streak per row sent: a streak of 4 sends nothing, 12 sends 2. */
-  killsPerRow: 5,
+  /** Kills in one streak per row sent: a streak of 5 sends nothing, 12 sends 2. */
+  killsPerRow: 6,
   /** Most rows one attack carries (a longer streak attacks as soon as it gets there). */
   maxAttack: 6,
   /** Most rows that can wait to land; the rest of an attack is lost. */
@@ -22,6 +42,8 @@ export const DUEL = {
 
 export interface Incoming {
   rows: number;
+  /** The sender's progress (level row), which sets the garbage's HP. */
+  hpRow: number;
   /** Seconds it has waited. */
   t: number;
 }
@@ -32,6 +54,9 @@ export class Duel {
   streak = 0;
   private quiet = 0;
   private out = 0;
+  private announced = 0;
+  /** Attack rows owed below one whole row (margin time multiplies attacks). */
+  private carry = 0;
   /** The opponent's attacks waiting to land, oldest first. */
   incoming: Incoming[] = [];
   delay = DUEL.delay;
@@ -39,6 +64,13 @@ export class Duel {
   constructor(b: Battle) {
     this.b = b;
     b.duel = this;
+    b.stage.segmentRows = DUEL.segmentRows;
+  }
+
+  /** Margin time step reached on the match clock: 0 until DUEL.marginStart, then 1, 2, … */
+  get margin() {
+    const t = this.b.t - DUEL.marginStart;
+    return t < 0 ? 0 : 1 + Math.floor(t / DUEL.marginStep);
   }
 
   /** Rows waiting to land. */
@@ -56,12 +88,23 @@ export class Duel {
   }
 
   update(dt: number) {
+    const k = this.margin;
+    if (k > this.announced) {
+      this.announced = k;
+      const b = this.b;
+      b.text((b.left + b.right) / 2, b.player.y - 120, k === 1 ? '加压开始！' : `加压 ×${k}`, '#ff9a3a', 22);
+    }
+    this.b.stage.scrollMul = 1 + DUEL.marginScroll * k;
+    this.delay = Math.max(DUEL.minDelay, DUEL.delay - DUEL.marginDelay * k);
     if (this.streak) {
       this.quiet += dt;
       if (this.quiet >= DUEL.streakGap) this.endStreak();
     }
     for (const p of this.incoming) p.t += dt;
-    while (this.incoming.length && this.incoming[0].t >= this.delay) this.b.stage.landGarbage(this.incoming.shift()!.rows);
+    while (this.incoming.length && this.incoming[0].t >= this.delay) {
+      const p = this.incoming.shift()!;
+      this.b.stage.landGarbage(p.rows, p.hpRow);
+    }
   }
 
   private endStreak() {
@@ -72,6 +115,9 @@ export class Duel {
 
   /** An attack cancels the rows waiting to land first (most urgent first); what's left goes to the opponent. */
   private attack(rows: number) {
+    const total = rows * DUEL.marginAttack ** this.margin + this.carry;
+    rows = Math.floor(total);
+    this.carry = total - rows;
     let cancelled = 0;
     while (rows > 0 && this.incoming.length) {
       const p = this.incoming[0];
@@ -86,6 +132,11 @@ export class Duel {
     this.out += rows;
   }
 
+  /** How tough the rows this player sends are: their progress through the level. */
+  get hpRow() {
+    return this.b.stage.rows;
+  }
+
   /** Rows to send to the opponent now, at most one attack's worth (the rest comes next time). */
   take() {
     const n = Math.min(this.out, DUEL.maxAttack);
@@ -93,10 +144,10 @@ export class Duel {
     return n;
   }
 
-  /** The opponent's attack arrives and starts waiting. */
-  receive(rows: number) {
+  /** The opponent's attack arrives and starts waiting; `hpRow` is their progress (default: ours). */
+  receive(rows: number, hpRow = this.b.stage.rows) {
     const n = Math.min(Math.floor(rows), DUEL.maxAttack, DUEL.maxPending - this.pending);
-    if (n > 0) this.incoming.push({ rows: n, t: 0 });
+    if (n > 0) this.incoming.push({ rows: n, hpRow, t: 0 });
   }
 
   /** How close a waiting attack is to landing: 0 (yellow) … 2 (flashing). */

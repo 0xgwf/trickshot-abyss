@@ -14,6 +14,7 @@ import {
   makeOffers,
   makeReactorOptions,
   offerTitle,
+  offerValid,
   type Offer,
   type ReactorOption,
 } from './upgrades.ts';
@@ -474,6 +475,8 @@ export class Battle {
       this.events.push({ type: 'reactor' });
       this.recomputeStats();
       this.syncBabies();
+      // The reactor may have changed what the open offers point at.
+      if (this.offers?.some((o) => !offerValid(this, o))) this.offers = makeOffers(this);
     } else if (this.pendingReactors > 0) {
       this.reactor = makeReactorOptions(this);
       this.phase = 'reactor';

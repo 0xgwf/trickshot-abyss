@@ -53,9 +53,29 @@ export function makeOffers(b: Battle): Offer[] {
 export const autoOffer = (offers: Offer[]) =>
   offers.find((o) => o.kind === 'upBall') ?? offers.find((o) => o.kind === 'newBall') ?? offers[0];
 
+/**
+ * Whether an offer can still be taken. Versus keeps offers open while the run goes on, and the Fusion
+ * Reactor can level, fuse or evolve the ball or passive an offer points at in the meantime.
+ */
+export function offerValid(b: Battle, o: Offer) {
+  const ownedIds = new Set(b.owned.map((ob) => single(ob)?.def.id).filter(Boolean));
+  switch (o.kind) {
+    case 'newBall':
+      return b.owned.length < CFG.ballSlots && !ownedIds.has(o.def.id);
+    case 'upBall':
+      return b.owned.includes(o.ob) && !!single(o.ob) && o.ob.parts[0].lv < 3;
+    case 'newPassive':
+      return b.passives.length < CFG.passiveSlots && !b.hasPassive(o.def.id);
+    case 'upPassive':
+      return b.passives.includes(o.p) && o.p.lv < 3;
+    case 'heal':
+      return true;
+  }
+}
+
 export function applyOffer(b: Battle, o: Offer) {
-  // Guard against a stale or double-applied choice.
-  if (b.pendingLevelUps <= 0) return;
+  // Guard against a stale or double-applied choice (a new set of offers follows).
+  if (b.pendingLevelUps <= 0 || !offerValid(b, o)) return;
   switch (o.kind) {
     case 'newBall':
       b.addBall(o.def);

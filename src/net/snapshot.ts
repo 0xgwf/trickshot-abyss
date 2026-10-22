@@ -319,7 +319,7 @@ export function applySnapshot(g: Battle, s: Snapshot) {
   });
   g.passives = s.passives.map(([id, lv]) => ({ def: PASSIVES[id], lv }));
   if (g.duel) {
-    g.duel.incoming = s.inc.map(([rows, f]) => ({ rows, t: f * g.duel!.delay }));
+    g.duel.incoming = s.inc.map(([rows, f]) => ({ rows, hpRow: 0, t: f * g.duel!.delay }));
     g.duel.streak = s.streak;
   }
 }

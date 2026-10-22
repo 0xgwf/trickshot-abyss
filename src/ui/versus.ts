@@ -84,7 +84,7 @@ export class Versus {
       } else if (m.t === 'opp' && this.ghost) {
         this.oppPlay.push(m.s as Snapshot);
         this.oppSeen = true;
-      } else if (m.t === 'garbage') this.duel?.receive(m.n as number);
+      } else if (m.t === 'garbage') this.duel?.receive(m.n as number, m.r as number);
       else if (m.t === 'oppOver') this.oppOver = { won: !!m.won, quit: !!m.quit, progress: m.progress as number, time: m.time as number };
       else if (m.t === 'oppLeft') this.oppLeft = true;
     }
@@ -118,7 +118,7 @@ export class Versus {
     }
     const n = this.duel!.take();
     if (n) {
-      this.socket.send({ t: 'attack', n });
+      this.socket.send({ t: 'attack', n, r: this.duel!.hpRow });
       b.text(b.player.x, b.player.y - 44, `送出 ${n} 行！`, C.gold, 18);
     }
     if ((b.phase === 'won' || b.phase === 'lost') && !this.sentOver) {
@@ -138,6 +138,12 @@ export class Versus {
     else text(ctx, '等待对手的画面…', VIEW_W * 0.75, VIEW_H / 2, { size: 22, align: 'center', color: C.dim });
     ctx.fillStyle = '#3a3028';
     ctx.fillRect(VIEW_W / 2 - 1, 0, 2, VIEW_H);
+    // Margin time: the pressure step both runs share.
+    const k = this.duel?.margin ?? 0;
+    if (k > 0) {
+      panel(ctx, VIEW_W / 2 - 40, TOP + 4, 80, 24, false, 0.9);
+      text(ctx, `加压 ×${k}`, VIEW_W / 2, TOP + 21, { size: 14, align: 'center', color: '#ff9a3a' });
+    }
 
     this.status(ctx, b, `你 · ${this.name}`, 12);
     if (this.ghost && this.oppSeen) this.status(ctx, this.ghost, `对手 · ${this.oppName}`, VIEW_W / 2 + 12);

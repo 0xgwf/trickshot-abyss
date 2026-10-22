@@ -33,7 +33,12 @@ export function joinVersus(conn, msg) {
     const peer = me.peer;
     if (!peer) return;
     if (m.t === 'snap') peer.conn.send({ t: 'opp', s: m.s });
-    else if (m.t === 'attack') peer.conn.send({ t: 'garbage', n: Math.max(1, Math.min(6, Math.floor(Number(m.n) || 1))) });
+    else if (m.t === 'attack')
+      peer.conn.send({
+        t: 'garbage',
+        n: Math.max(1, Math.min(6, Math.floor(Number(m.n) || 1))),
+        r: Math.max(0, Math.min(1000, Math.floor(Number(m.r) || 0))),
+      });
     else if (m.t === 'over')
       peer.conn.send({ t: 'oppOver', won: !!m.won, quit: !!m.quit, progress: Number(m.progress) || 0, time: Number(m.time) || 0 });
   };
