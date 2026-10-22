@@ -693,7 +693,8 @@ export class WorldRenderer {
     ctx.globalCompositeOperation = 'source-over';
     for (const ball of b.balls) {
       const color = this.ballColor(ball);
-      const alpha = ball.state === 'return' ? 0.45 : 1;
+      // Returning balls stay easy to follow on their way back, just a little dimmer.
+      const alpha = ball.state === 'return' ? 0.8 : 1;
       ctx.globalAlpha = 0.35 * alpha;
       ctx.fillStyle = color;
       ball.trail.forEach((t, i) => {
