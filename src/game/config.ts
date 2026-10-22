@@ -79,6 +79,12 @@ export const RULES = {
   wingsFullSpeedShooting: false,
   /** Freeze lasts this fraction as long on bosses and minibosses. Unchanged; no source either way. est. */
   bossFreezeMul: 0.3,
+  /**
+   * Balls turn back for the player as they touch the visible bottom edge. Was false: only once completely
+   * off the screen, so the trip back was mostly out of sight. The wiki says the Repentant's balls return
+   * "akin to hitting the front wall". est.
+   */
+  returnAtBottomEdge: true,
 };
 
 export const T = (tiles: number) => tiles * TILE;

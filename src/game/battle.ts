@@ -806,10 +806,11 @@ export class Battle {
       ball.vy = Math.abs(ball.vy);
       this.onWall(ball, true);
       if (this.char.id === 'repentant' && !ball.temp && !ball.dead) ball.repentReturn = true;
-    } else if (ball.y - r > WORLD_H) {
+    } else if (RULES.returnAtBottomEdge ? ball.y + r >= WORLD_H && ball.vy >= 0 : ball.y - r > WORLD_H) {
       if (ball.temp) {
         ball.dead = true;
       } else {
+        if (RULES.returnAtBottomEdge) ball.y = WORLD_H - r;
         ball.state = 'return';
       }
     }
