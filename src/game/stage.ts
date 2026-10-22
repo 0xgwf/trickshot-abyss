@@ -53,6 +53,8 @@ const BOSS_Y = TILE * 1.6;
 const QUEEN_Y = TILE * 2.2;
 const ORBIT = TILE * 2.3;
 const SHIELD = TILE * 0.9;
+/** How fast landing garbage shoves the enemy rows down (px/s). */
+const PUSH_SPEED = TILE * 12;
 
 /** Drives one level: scrolling, row spawns, the two checkpoints and the boss fight. */
 export class Stage {
@@ -69,6 +71,12 @@ export class Stage {
   floorScrollPx = CFG.scrollSpeed * TILE;
   /** Total floor distance scrolled (px), for the scrolling background. */
   floorY = 0;
+  /** Versus: how much further landing garbage still shoves every enemy row down (px). */
+  pushPx = 0;
+  /** Rows between checkpoints (versus plays shorter levels). */
+  segmentRows: number = CFG.segmentRows;
+  /** Floor speed multiplier (versus speeds it up over the match). */
+  scrollMul = 1;
   banner: { text: string; sub: string; t: number } | null;
   readonly level: LevelDef;
   warnings: Warning[] = [];
@@ -95,8 +103,8 @@ export class Stage {
 
   /** 0..1 through the level (rows), for the progress bar. */
   get progress() {
-    const total = CFG.segmentRows * 3;
-    return Math.min(1, (this.segment * CFG.segmentRows + Math.min(this.segRows, CFG.segmentRows)) / total);
+    const total = this.segmentRows * 3;
+    return Math.min(1, (this.segment * this.segmentRows + Math.min(this.segRows, this.segmentRows)) / total);
   }
 
   update(dt: number) {
@@ -109,18 +117,25 @@ export class Stage {
     this.warnings = this.warnings.filter((w) => w.t > 0);
 
     const busy = b.enemies.some((e) => !e.dead && e.def.rank === 'normal' && e.y + e.h > TILE * 2.5);
-    const speed = this.state === 'rows' && !busy ? CFG.scrollSpeedEmpty : CFG.scrollSpeed;
+    const speed = (this.state === 'rows' && !busy ? CFG.scrollSpeedEmpty : CFG.scrollSpeed) * this.scrollMul;
     this.scrollPx = speed * TILE;
     this.floorScrollPx = this.scrollPx;
     this.floorY += this.floorScrollPx * dt;
+    if (this.pushPx > 0) {
+      const move = Math.min(this.pushPx, PUSH_SPEED * dt);
+      this.pushPx -= move;
+      this.floorY += move;
+      for (const e of b.enemies) if (!e.dead && e.def.rank === 'normal') e.y += move;
+    }
 
-    if (this.state === 'rows') {
+    // New rows wait while garbage is being pushed in above the newest one.
+    if (this.state === 'rows' && this.pushPx <= 0) {
       this.acc += this.scrollPx * dt;
       while (this.acc >= TILE) {
         this.acc -= TILE;
         this.spawnRow();
       }
-      if (this.segRows >= CFG.segmentRows) this.checkpoint();
+      if (this.segRows >= this.segmentRows) this.checkpoint();
     } else if (this.state === 'bossIntro') {
       this.introT += dt;
       const cleared = !b.enemies.some((e) => !e.dead && e.y + e.h > 0);
@@ -138,8 +153,8 @@ export class Stage {
   debugSkipToBoss() {
     for (const e of this.b.enemies) e.dead = true;
     this.segment = 2;
-    this.rows = CFG.segmentRows * 3;
-    this.segRows = CFG.segmentRows;
+    this.rows = this.segmentRows * 3;
+    this.segRows = this.segmentRows;
     const w = this.cols * TILE;
     this.b.targetLeft = this.b.left = (WORLD_W - w) / 2;
     this.b.targetRight = this.b.right = this.b.left + w;
@@ -148,12 +163,13 @@ export class Stage {
 
   // ---------------------------------------------------------------- spawning
 
-  enemyHp(def: EnemyDef) {
-    return CFG.enemyBaseHp * this.level.hpMul * def.hpMul * (1 + CFG.enemyHpGrowthPerRow * this.rows) * this.b.enemyHpMul;
+  /** HP for an enemy at a row of the level (by default the current one). */
+  enemyHp(def: EnemyDef, row = this.rows) {
+    return CFG.enemyBaseHp * this.level.hpMul * def.hpMul * (1 + CFG.enemyHpGrowthPerRow * row) * this.b.enemyHpMul;
   }
 
-  spawn(def: EnemyDef, x: number, y: number) {
-    const e = new Enemy(def, x, y, Math.round(this.enemyHp(def)), this.rows);
+  spawn(def: EnemyDef, x: number, y: number, row = this.rows) {
+    const e = new Enemy(def, x, y, Math.round(this.enemyHp(def, row)), row);
     e.shootCd = this.b.rng.range(1, 4);
     this.b.enemies.push(e);
     return e;
@@ -194,7 +210,7 @@ export class Stage {
   private makeChunk(): Cell[][] {
     const rng = this.rowRng;
     const cols = this.cols;
-    const t = this.segRows / CFG.segmentRows;
+    const t = this.segRows / this.segmentRows;
     const density = Math.min(0.8, 0.32 + 0.07 * this.segment + 0.14 * t);
     const empty = (): Cell[] => Array(cols).fill(null);
     const out: Cell[][] = [];
@@ -277,17 +293,37 @@ export class Stage {
     return out;
   }
 
-  /** Versus: queues `n` rows of the segment's basic enemy, with two gaps each, ahead of the next rows. */
-  addGarbage(n: number) {
+  /**
+   * Versus: `n` rows of this segment's basic enemy from the opponent land like Tetris garbage: they slot in
+   * above the newest row and shove every enemy row `n` tiles closer to the player. One gap per row, in the
+   * same column through the whole packet. They are extra (they don't count towards the checkpoint), they
+   * land during miniboss and boss fights too, and they drop nothing. Their HP is that of row `row` (the
+   * sender's progress: the further ahead the attacker, the tougher the garbage).
+   */
+  landGarbage(n: number, row = this.rows) {
+    const b = this.b;
     const cols = this.cols;
-    const id = Object.keys(this.level.weights[this.segment])[0];
-    const rows: Cell[][] = [];
-    for (let i = 0; i < n; i++) {
-      const holes = new Set([this.b.rng.int(0, cols - 1), this.b.rng.int(0, cols - 1)]);
-      rows.push(Array.from({ length: cols }, (_, c) => (holes.has(c) ? null : id)));
+    const def = ENEMIES[Object.keys(this.level.weights[this.segment])[0]];
+    const hole = b.rng.int(0, cols - 1);
+    // Above the newest row, or above garbage that is still being pushed in.
+    const top = -TILE + this.acc - this.pushPx;
+    const push = this.pushPx + n * TILE;
+    const big = b.enemies.filter((e) => !e.dead && e.def.rank !== 'normal');
+    for (let j = 0; j < n; j++) {
+      const y = top - (j + 1) * TILE;
+      for (let c = 0; c < cols; c++) {
+        const x = b.targetLeft + c * TILE;
+        // Skip the gap, and cells that would end up inside a miniboss or boss.
+        if (c === hole || big.some((e) => e.x < x + TILE && e.x + e.w > x && e.y < y + push + TILE && e.y + e.h > y + push)) continue;
+        const e = this.spawn(def, x, y, row);
+        e.garbage = true;
+        e.dropsLoot = false;
+      }
     }
-    this.pending.unshift(...rows);
-    this.banner = { text: `对手送来 ${n} 行敌人`, sub: 'Incoming rows', t: 1.6 };
+    this.pushPx = push;
+    b.shake = Math.min(12, b.shake + 3 + n);
+    b.text((b.left + b.right) / 2, TILE * 1.2, `对手送来 ${n} 行`, '#ff6a5a', 22);
+    b.events.push({ type: 'explode' });
   }
 
   // ---------------------------------------------------------------- checkpoints

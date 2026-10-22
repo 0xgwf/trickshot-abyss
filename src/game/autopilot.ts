@@ -1,6 +1,6 @@
 import type { Battle, Controls } from './battle.ts';
 import { TILE, WORLD_H } from './config.ts';
-import { applyEvolution, applyFission, applyFusion, applyOffer, findEvolutions } from './upgrades.ts';
+import { applyOffer, autoReactor } from './upgrades.ts';
 
 /** A simple bot used by the balance simulator and the screenshot tests (plays roughly like a casual human). */
 export function autopilot(b: Battle, p = b.player): Controls {
@@ -90,16 +90,12 @@ export function autopilot(b: Battle, p = b.player): Controls {
 
 /** Auto-resolves level-up and reactor choices. */
 export function autoDecide(b: Battle) {
-  if (b.phase === 'levelup' && b.offers) {
+  if (b.offers && (b.phase === 'levelup' || b.live)) {
     const o = b.offers.find((x) => x.kind === 'upBall') ?? b.offers.find((x) => x.kind === 'newBall') ?? b.rng.pick(b.offers);
     applyOffer(b, o);
     b.resume();
   } else if (b.phase === 'reactor' && b.reactor) {
-    const evos = findEvolutions(b);
-    const fus = b.reactor.find((r) => r.kind === 'fusion');
-    if (evos.length) applyEvolution(b, evos[0]);
-    else if (fus && fus.kind === 'fusion' && b.owned.length >= 4) applyFusion(b, ...fus.pairs[0]);
-    else applyFission(b);
+    autoReactor(b);
     b.resume();
   }
 }

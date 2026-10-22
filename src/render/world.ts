@@ -322,6 +322,14 @@ export class WorldRenderer {
     const want = e.def.sprite ?? e.def.id;
     const name = hasSprite(want) ? want : 'warrior';
     ctx.drawImage(sprite(name, e.flash > 0, e.def.tint), x + 8, y + 4, 32, 32);
+    if (e.garbage) {
+      // Rows sent by the opponent in versus: greyed out, like Tetris garbage.
+      ctx.fillStyle = 'rgba(64,64,76,0.5)';
+      ctx.fillRect(x + 2, y + 2, e.w - 4, e.h - 4);
+      ctx.strokeStyle = '#9a9aa8';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 3, y + 3, e.w - 6, e.h - 6);
+    }
     if (e.def.immuneSide === 'front') {
       // Shield edge on the front (bottom) side.
       ctx.fillStyle = '#e0f4ff';
@@ -696,7 +704,8 @@ export class WorldRenderer {
     ctx.globalCompositeOperation = 'source-over';
     for (const ball of b.balls) {
       const color = this.ballColor(ball);
-      const alpha = ball.state === 'return' ? 0.45 : 1;
+      // Returning balls stay easy to follow on their way back, just a little dimmer.
+      const alpha = ball.state === 'return' ? 0.8 : 1;
       ctx.globalAlpha = 0.35 * alpha;
       ctx.fillStyle = color;
       ball.trail.forEach((t, i) => {

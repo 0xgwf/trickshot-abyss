@@ -97,6 +97,9 @@ export interface Snapshot {
   banner: { text: string; sub: string; t: number } | null;
   owned: [string, number, string, number][];
   passives: [string, number][];
+  /** Versus: attacks waiting to land (rows, fraction of the delay waited), and the current kill streak. */
+  inc: [number, number][];
+  streak: number;
 }
 
 /** Captures the parts of a battle that are drawn. Particles are capped to keep messages small. */
@@ -159,7 +162,7 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
           r1(e.blind),
           r1(e.slowTimer),
           e.radiation,
-          (e.curse ? 1 : 0) | (e.leech ? 2 : 0) | (e.rod ? 4 : 0) | (e.invulnerable ? 8 : 0),
+          (e.curse ? 1 : 0) | (e.leech ? 2 : 0) | (e.rod ? 4 : 0) | (e.invulnerable ? 8 : 0) | (e.garbage ? 16 : 0),
           ...DOTS.map((k) => e[k].stacks),
         ] as EnemySnap,
     ),
@@ -188,6 +191,8 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
     banner: st.banner,
     owned: b.owned.map((o) => [partsKey(o.parts), o.fused ? 1 : 0, o.state, r1(o.cooldown)]),
     passives: b.passives.map((q) => [q.def.id, q.lv]),
+    inc: b.duel?.incoming.map((q) => [q.rows, r3(q.t / b.duel!.delay)]) ?? [],
+    streak: b.duel?.streak ?? 0,
   };
 }
 
@@ -229,6 +234,7 @@ export function applySnapshot(g: Battle, s: Snapshot) {
     if (flags & 2) e.leech = { rate: 0, max: 0, tick: 1 };
     if (flags & 4) e.rod = { interval: 1, timer: 1, dmg: [0, 0], targets: 0 };
     e.invulnerable = (flags & 8) !== 0;
+    e.garbage = (flags & 16) !== 0;
     DOTS.forEach((k, i) => (e[k].stacks = dots[i] ?? 0));
     return e;
   });
@@ -315,4 +321,8 @@ export function applySnapshot(g: Battle, s: Snapshot) {
     return ob;
   });
   g.passives = s.passives.map(([id, lv]) => ({ def: PASSIVES[id], lv }));
+  if (g.duel) {
+    g.duel.incoming = s.inc.map(([rows, f]) => ({ rows, hpRow: 0, t: f * g.duel!.delay }));
+    g.duel.streak = s.streak;
+  }
 }

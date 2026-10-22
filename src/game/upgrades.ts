@@ -49,9 +49,33 @@ export function makeOffers(b: Battle): Offer[] {
   return b.rng.pickWeighted(cands, (c) => c.w, 3).map((c) => c.o);
 }
 
+/** The pick when nobody chooses (the Cogitator, a versus choice left too long): upgrade a ball, else a new ball. */
+export const autoOffer = (offers: Offer[]) =>
+  offers.find((o) => o.kind === 'upBall') ?? offers.find((o) => o.kind === 'newBall') ?? offers[0];
+
+/**
+ * Whether an offer can still be taken. Versus keeps offers open while the run goes on, and the Fusion
+ * Reactor can level, fuse or evolve the ball or passive an offer points at in the meantime.
+ */
+export function offerValid(b: Battle, o: Offer) {
+  const ownedIds = new Set(b.owned.map((ob) => single(ob)?.def.id).filter(Boolean));
+  switch (o.kind) {
+    case 'newBall':
+      return b.owned.length < CFG.ballSlots && !ownedIds.has(o.def.id);
+    case 'upBall':
+      return b.owned.includes(o.ob) && !!single(o.ob) && o.ob.parts[0].lv < 3;
+    case 'newPassive':
+      return b.passives.length < CFG.passiveSlots && !b.hasPassive(o.def.id);
+    case 'upPassive':
+      return b.passives.includes(o.p) && o.p.lv < 3;
+    case 'heal':
+      return true;
+  }
+}
+
 export function applyOffer(b: Battle, o: Offer) {
-  // Guard against a stale or double-applied choice.
-  if (b.pendingLevelUps <= 0) return;
+  // Guard against a stale or double-applied choice (a new set of offers follows).
+  if (b.pendingLevelUps <= 0 || !offerValid(b, o)) return;
   switch (o.kind) {
     case 'newBall':
       b.addBall(o.def);
@@ -213,6 +237,21 @@ export function applyFusion(b: Battle, a: OwnedBall, c: OwnedBall) {
   b.owned.splice(Math.max(0, idx), 0, fused);
   b.queue.unshift(fused);
   b.pendingReactors--;
+}
+
+/** The bot's reactor choice: an evolution if any, else a fusion once 4 balls are owned, else fission. Says what it did. */
+export function autoReactor(b: Battle): string {
+  const evo = findEvolutions(b)[0];
+  if (evo) {
+    applyEvolution(b, evo);
+    return `进化 · ${evo.result.zh}`;
+  }
+  const pair = findFusions(b)[0];
+  if (pair && b.owned.length >= 4) {
+    applyFusion(b, ...pair);
+    return `融合 · ${pair[0].parts[0].def.zh} + ${pair[1].parts[0].def.zh}`;
+  }
+  return `裂变 · ${applyFission(b).join('，')}`;
 }
 
 export function applyEvolution(b: Battle, evo: Evolution) {
