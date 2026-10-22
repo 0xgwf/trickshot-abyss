@@ -1,6 +1,7 @@
 // Field snapshots for multiplayer: everything the world renderer and the HUD read, as compact JSON.
 // `takeSnapshot` runs where the battle is simulated; `applySnapshot` writes it into a stand-in Battle
-// that is only ever drawn, never updated. Pure logic, so it also runs in Node.
+// that is only ever drawn, never updated (playback.ts blends two snapshots for smooth motion first).
+// Pure logic, so it also runs in Node.
 import { Ball, newOwnedBall } from '../game/ball.ts';
 import type { Ally, Battle, Beam, Drop, FloatText, Minion, Particle, Phase, Ring, Shot, Zone } from '../game/battle.ts';
 import { BALLS } from '../game/data/balls.ts';
@@ -11,6 +12,15 @@ import type { Warning } from '../game/stage.ts';
 
 const DOTS = ['burn', 'poison', 'frostburn', 'venom', 'disease', 'darkflame'] as const;
 const r1 = (n: number) => Math.round(n * 10) / 10;
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
+/** Every entity object gets a number the first time it is captured, so receivers can follow it. */
+const entityIds = new WeakMap<object, number>();
+let nextId = 1;
+const idOf = (o: object) => {
+  let id = entityIds.get(o);
+  if (id === undefined) entityIds.set(o, (id = nextId++));
+  return id;
+};
 /** Ball parts as "burn3+iron3". */
 const partsKey = (parts: { def: { id: string }; lv: number }[]) => parts.map((p) => `${p.def.id}${p.lv}`).join('+');
 const parseParts = (key: string) =>
@@ -42,7 +52,15 @@ type EnemySnap = [
 // [x, y, r, parts, state, tag, trail (flat x,y list)]
 type BallSnap = [number, number, number, string, number, string, number[]];
 
+/** The entity lists in a snapshot, each with a parallel list of ids in `ids`. */
+export type EntityList =
+  'enemies' | 'balls' | 'shots' | 'zones' | 'drops' | 'minions' | 'allies' | 'particles' | 'texts' | 'beams' | 'rings';
+
 export interface Snapshot {
+  /** The sender's clock (seconds) when this was taken; snapshots are played back on this timeline. */
+  at: number;
+  /** Ids of the entities in each list, in the same order. */
+  ids: Record<EntityList, number[]>;
   t: number;
   phase: Phase;
   left: number;
@@ -84,9 +102,31 @@ export interface Snapshot {
 export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
   const st = b.stage;
   const live = b.enemies.filter((e) => !e.dead);
+  const balls = b.balls.filter((x) => !x.dead);
+  const shots = b.shots.filter((s) => !s.dead);
+  const zones = b.zones.filter((z) => !z.dead);
+  const drops = b.drops.filter((d) => !d.dead);
+  const minions = b.minions.filter((m) => !m.dead);
+  const allies = b.allies.filter((a) => !a.dead);
+  const particles = b.particles.slice(-maxParticles);
   const p = b.player;
   return {
-    t: r1(b.t),
+    at: r3(performance.now() / 1000),
+    ids: {
+      enemies: live.map(idOf),
+      balls: balls.map(idOf),
+      shots: shots.map(idOf),
+      zones: zones.map(idOf),
+      drops: drops.map(idOf),
+      minions: minions.map(idOf),
+      allies: allies.map(idOf),
+      particles: particles.map(idOf),
+      texts: b.texts.map(idOf),
+      beams: b.beams.map(idOf),
+      rings: b.rings.map(idOf),
+    },
+    // Milliseconds, since the renderer animates with it.
+    t: r3(b.t),
     phase: b.phase,
     left: r1(b.left),
     right: r1(b.right),
@@ -125,23 +165,21 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
     boss: st.boss && !st.boss.dead ? live.indexOf(st.boss) : -1,
     king: st.kingState,
     queen: (st as unknown as { queen: unknown }).queen,
-    balls: b.balls
-      .filter((x) => !x.dead)
-      .map((x) => [
-        r1(x.x),
-        r1(x.y),
-        r1(x.r),
-        partsKey(x.parts),
-        x.state === 'fly' ? 0 : 1,
-        x.tag,
-        x.trail.flatMap((q) => [r1(q.x), r1(q.y)]),
-      ]),
-    shots: b.shots.filter((s) => !s.dead).map((s) => [s.kind, r1(s.x), r1(s.y), r1(s.vx), r1(s.vy), s.r]),
-    zones: b.zones.filter((z) => !z.dead).map((z) => [z.kind, r1(z.x), r1(z.y), z.r, r1(z.life), z.maxLife]),
-    drops: b.drops.filter((d) => !d.dead).map((d) => [d.kind, r1(d.x), r1(d.y), d.value]),
-    minions: b.minions.filter((m) => !m.dead).map((m) => [m.kind, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy)]),
-    allies: b.allies.filter((a) => !a.dead).map((a) => [a.kind, r1(a.x), r1(a.y), a.w, a.h, Math.round(a.hp), a.maxHp, r1(a.flash)]),
-    particles: b.particles.slice(-maxParticles).map((q) => [r1(q.x), r1(q.y), q.color, q.size, r1(q.life * 100) / 100, q.max]),
+    balls: balls.map((x) => [
+      r1(x.x),
+      r1(x.y),
+      r1(x.r),
+      partsKey(x.parts),
+      x.state === 'fly' ? 0 : 1,
+      x.tag,
+      x.trail.flatMap((q) => [r1(q.x), r1(q.y)]),
+    ]),
+    shots: shots.map((s) => [s.kind, r1(s.x), r1(s.y), r1(s.vx), r1(s.vy), s.r]),
+    zones: zones.map((z) => [z.kind, r1(z.x), r1(z.y), z.r, r1(z.life), z.maxLife]),
+    drops: drops.map((d) => [d.kind, r1(d.x), r1(d.y), d.value]),
+    minions: minions.map((m) => [m.kind, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy)]),
+    allies: allies.map((a) => [a.kind, r1(a.x), r1(a.y), a.w, a.h, Math.round(a.hp), a.maxHp, r1(a.flash)]),
+    particles: particles.map((q) => [r1(q.x), r1(q.y), q.color, q.size, r1(q.life * 100) / 100, q.max]),
     texts: b.texts.map((q) => [r1(q.x), r1(q.y), q.text, q.color, r1(q.life * 100) / 100, q.size]),
     beams: b.beams.map((q) => [r1(q.x1), r1(q.y1), r1(q.x2), r1(q.y2), q.color, q.width, r1(q.life * 100) / 100, q.max, q.zigzag ? 1 : 0]),
     rings: b.rings.map((q) => [r1(q.x), r1(q.y), r1(q.r), q.color, r1(q.life * 100) / 100, q.max]),

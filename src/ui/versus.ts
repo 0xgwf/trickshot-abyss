@@ -1,13 +1,14 @@
 // LAN versus: two players race through the same level (same seed, same enemy rows) on their own
-// computers. The screen is split: your field on the left, the opponent's on the right, drawn from the
-// snapshots their browser sends 20 times a second. Kills send rows of enemies to the opponent.
+// computers. The screen is split: your field on the left, the opponent's on the right, played back
+// smoothly from the snapshots their browser sends 30 times a second. Kills send rows of enemies to the opponent.
 import type { Input } from '../core/input.ts';
 import { VIEW_H, VIEW_W } from '../core/view.ts';
 import { Battle, type Controls } from '../game/battle.ts';
 import { WORLD_H, WORLD_W } from '../game/config.ts';
 import { CHARACTERS } from '../game/data/characters.ts';
 import type { CharacterDef } from '../game/types.ts';
-import { applySnapshot, takeSnapshot } from '../net/snapshot.ts';
+import { Playback } from '../net/playback.ts';
+import { applySnapshot, takeSnapshot, type Snapshot } from '../net/snapshot.ts';
 import { Socket } from '../net/socket.ts';
 import { WorldRenderer } from '../render/world.ts';
 import { C, ballIcon, button, text } from './draw.ts';
@@ -20,7 +21,7 @@ const FIELD_W = WORLD_W * SPLIT_SCALE;
 const FIELD_H = WORLD_H * SPLIT_SCALE;
 const LEFT_X = (VIEW_W / 2 - FIELD_W) / 2;
 const RIGHT_X = VIEW_W / 2 + LEFT_X;
-const SNAP_RATE = 20;
+const SNAP_RATE = 30;
 /** Both players get every ball and passive unlock, so the level-up pools match. */
 const ALL_UNLOCKS = new Set(['boneyard', 'snowy']);
 /** Kills that send one row to the opponent; beating a miniboss sends two. */
@@ -46,6 +47,7 @@ export class Versus {
   state: 'connecting' | 'waiting' | 'playing' | 'closed' = 'connecting';
   battle: Battle | null = null;
   private ghost: Battle | null = null;
+  private readonly oppPlay = new Playback();
   private oppName = '';
   private oppSeen = false;
   private oppOver: Result | null = null;
@@ -77,13 +79,15 @@ export class Versus {
         this.oppName = opp.name;
         this.state = 'playing';
       } else if (m.t === 'opp' && this.ghost) {
-        applySnapshot(this.ghost, m.s as Parameters<typeof applySnapshot>[1]);
+        this.oppPlay.push(m.s as Snapshot);
         this.oppSeen = true;
       } else if (m.t === 'garbage') this.battle?.stage.addGarbage(m.n as number);
       else if (m.t === 'oppOver') this.oppOver = { won: !!m.won, quit: !!m.quit, progress: m.progress as number, time: m.time as number };
       else if (m.t === 'oppLeft') this.oppLeft = true;
     }
     if (this.socket.state === 'closed' && this.state !== 'playing') this.state = 'closed';
+    const s = this.ghost && this.oppPlay.sample();
+    if (s) applySnapshot(this.ghost!, s);
   }
 
   /** Maps mouse and keys to the left field. */
@@ -103,9 +107,10 @@ export class Versus {
   afterUpdate(dt: number) {
     const b = this.battle;
     if (!b) return;
+    // Carry the remainder over so the rate holds at any frame rate; each snapshot is stamped with its time.
     this.snapT += dt;
     if (this.snapT >= 1 / SNAP_RATE) {
-      this.snapT = 0;
+      this.snapT = Math.min(this.snapT - 1 / SNAP_RATE, 1 / SNAP_RATE);
       this.socket.send({ t: 'snap', s: takeSnapshot(b) });
     }
     const byKills = Math.floor(b.kills / KILLS_PER_ROW);
