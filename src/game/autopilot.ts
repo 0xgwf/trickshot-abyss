@@ -91,7 +91,7 @@ export function autopilot(b: Battle): Controls {
 
 /** Auto-resolves level-up and reactor choices. */
 export function autoDecide(b: Battle) {
-  if (b.phase === 'levelup' && b.offers) {
+  if (b.offers && (b.phase === 'levelup' || b.live)) {
     const o = b.offers.find((x) => x.kind === 'upBall') ?? b.offers.find((x) => x.kind === 'newBall') ?? b.rng.pick(b.offers);
     applyOffer(b, o);
     b.resume();

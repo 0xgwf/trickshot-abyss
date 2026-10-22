@@ -6,7 +6,7 @@ import { VIEW_H, VIEW_W } from '../core/view.ts';
 import { Battle, type Controls } from '../game/battle.ts';
 import { CFG, WORLD_H, WORLD_W } from '../game/config.ts';
 import { CHARACTERS } from '../game/data/characters.ts';
-import { Duel } from '../game/duel.ts';
+import { DUEL, Duel } from '../game/duel.ts';
 import type { CharacterDef } from '../game/types.ts';
 import { offerTitle, type Offer } from '../game/upgrades.ts';
 import { Playback } from '../net/playback.ts';
@@ -78,6 +78,7 @@ export class Versus {
         this.battle.live = true;
         this.duel = new Duel(this.battle);
         this.ghost = new Battle(oppChar, m.seed as number, ALL_UNLOCKS, m.level as string);
+        new Duel(this.ghost); // only drawn: shows the opponent's incoming meter and streak
         this.oppName = opp.name;
         this.state = 'playing';
       } else if (m.t === 'opp' && this.ghost) {
@@ -191,6 +192,29 @@ export class Versus {
       ctx.fillRect(x + 40, TOP + 10, FIELD_W - 80, 12);
       ctx.fillStyle = C.red;
       ctx.fillRect(x + 40, TOP + 10, (FIELD_W - 80) * boss.frac, 12);
+    }
+    if (b.duel) this.duelInfo(ctx, b, x);
+  }
+
+  /** The incoming meter on the left cliff (one block per row, oldest at the bottom) and the kill streak. */
+  private duelInfo(ctx: CanvasRenderingContext2D, b: Battle, x: number) {
+    const d = b.duel!;
+    const flash = Math.floor(performance.now() / 120) % 2 === 0;
+    let y = TOP + FIELD_H - 70;
+    for (const p of d.incoming) {
+      const stage = d.stage(p);
+      ctx.fillStyle = stage === 0 ? '#ffd23a' : stage === 1 || flash ? '#ff4a3a' : '#ffffff';
+      for (let i = 0; i < p.rows; i++) {
+        y -= 20;
+        ctx.fillRect(x + 10, y, 14, 18);
+      }
+    }
+    if (d.incoming.length) text(ctx, `来袭 ${d.pending}`, x + 8, y - 8, { size: 13, color: '#ff8a7a' });
+    if (d.streak) {
+      const rows = Math.floor(d.streak / DUEL.killsPerRow);
+      const p = b.player;
+      const label = rows ? `连杀 ${d.streak} · ${rows} 行` : `连杀 ${d.streak}`;
+      text(ctx, label, x + p.x * SPLIT_SCALE, TOP + (p.y + 40) * SPLIT_SCALE, { size: 14, align: 'center', color: rows ? C.gold : C.dim });
     }
   }
 

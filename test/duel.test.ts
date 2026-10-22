@@ -6,7 +6,8 @@ import { Battle } from '../src/game/battle.ts';
 import { CFG, TILE, WORLD_H } from '../src/game/config.ts';
 import { CHARACTERS } from '../src/game/data/characters.ts';
 import { ENEMIES } from '../src/game/data/enemies.ts';
-import { Duel } from '../src/game/duel.ts';
+import { DUEL, Duel } from '../src/game/duel.ts';
+import { applySnapshot, takeSnapshot } from '../src/net/snapshot.ts';
 import { IDLE, arena, dummy } from './helpers.ts';
 
 const versus = (seed = 3) => {
@@ -60,14 +61,15 @@ test('the Fusion Reactor resolves itself in a live run', () => {
 });
 
 test('garbage rows are extra: they do not move the run towards the checkpoint, and drop nothing', () => {
-  const { b, duel } = versus();
+  const { b } = versus();
   step(b, 2);
   const { rows, segRows } = b.stage;
   const progress = b.stage.progress;
-  duel.receive(3);
+  b.stage.landGarbage(3);
   const garbage = b.enemies.filter((e) => e.garbage);
   assert.equal(garbage.length, 3 * (b.stage.cols - 1), 'three rows with one gap each');
   assert.equal(new Set(garbage.map((e) => e.x)).size, b.stage.cols - 1, 'the gap is the same column all the way down');
+  step(b, 0.5);
   assert.equal(b.stage.rows, rows);
   assert.equal(b.stage.segRows, segRows);
   assert.equal(b.stage.progress, progress);
@@ -76,32 +78,113 @@ test('garbage rows are extra: they do not move the run towards the checkpoint, a
   assert.equal(b.drops.length, drops, 'no gem, gold or potion');
 });
 
+test('landing garbage shoves every enemy row down by its height, and the new rows come in at the top', () => {
+  const { b } = versus();
+  step(b, 6);
+  const e = b.enemies.filter((x) => !x.dead && x.def.rank === 'normal').sort((p, q) => q.y - p.y)[0];
+  const y = e.y;
+  b.stage.landGarbage(3);
+  step(b, 0.5);
+  assert.ok(e.dead || (e.y - y >= TILE * 3 && e.y - y < TILE * 3 + 40), `moved ${e.y - y}`);
+  const top = Math.min(...b.enemies.filter((x) => x.garbage).map((x) => x.y));
+  assert.ok(top > -TILE * 1.5 && top < TILE, `garbage top row at ${top}`);
+  step(b, 5);
+  assert.ok(b.stage.rows > 0 && b.enemies.some((x) => !x.garbage && x.y < TILE), 'the level rows carry on above');
+});
+
 test('garbage lands during a miniboss fight too', () => {
-  const { b, duel } = versus();
+  const { b } = versus();
   (b.stage as unknown as { checkpoint(): void }).checkpoint();
   assert.equal(b.stage.state, 'miniboss');
-  duel.receive(2);
+  b.stage.landGarbage(2);
   assert.ok(b.enemies.some((e) => e.garbage));
 });
 
-test('only your own kills attack: garbage kills send nothing back', () => {
-  const b = arena();
-  const duel = new Duel(b);
-  for (let i = 0; i < 25; i++) {
+/** Kills `n` enemies at once, as one streak. */
+const streak = (b: Battle, n: number, garbage = false) => {
+  for (let i = 0; i < n; i++) {
     const e = dummy(b, 1);
-    e.garbage = true;
+    e.garbage = garbage;
     b.kill(e);
   }
+};
+
+test('kill streaks attack in chunks: under 5 kills sends nothing, every 5 more sends a row', () => {
+  const b = arena();
+  const duel = new Duel(b);
+  streak(b, 4);
+  duel.update(DUEL.streakGap);
   assert.equal(duel.take(), 0);
-  for (let i = 0; i < 25; i++) b.kill(dummy(b, 1));
-  assert.ok(duel.take() > 0);
+  streak(b, 12);
+  duel.update(DUEL.streakGap / 2);
+  assert.equal(duel.take(), 0, 'not while the streak is going');
+  duel.update(DUEL.streakGap / 2);
+  assert.equal(duel.take(), 2);
+  streak(b, DUEL.killsPerRow * DUEL.maxAttack);
+  assert.equal(duel.take(), DUEL.maxAttack, 'a full streak attacks at once');
+});
+
+test('only your own kills attack: garbage kills send nothing back; a miniboss sends a big attack', () => {
+  const b = arena();
+  const duel = new Duel(b);
+  streak(b, 20, true);
+  duel.update(DUEL.streakGap);
+  assert.equal(duel.take(), 0);
   b.kill(dummy(b, 1, 0, 3, ENEMIES[Object.keys(ENEMIES).find((id) => ENEMIES[id].rank === 'miniboss')!]));
-  assert.ok(duel.take() >= 2, 'a miniboss sends a big attack');
+  assert.equal(duel.take(), DUEL.minibossRows);
+});
+
+test('attacking cancels the rows waiting to land first, and only the rest goes out', () => {
+  const b = arena();
+  const duel = new Duel(b);
+  duel.receive(3);
+  streak(b, 10);
+  duel.update(DUEL.streakGap);
+  assert.equal(duel.pending, 1);
+  assert.equal(duel.take(), 0);
+  streak(b, 15);
+  duel.update(DUEL.streakGap);
+  assert.equal(duel.pending, 0);
+  assert.equal(duel.take(), 2);
+});
+
+test('incoming rows wait out the delay, then land; one attack and the meter are capped', () => {
+  const { b, duel } = versus();
+  step(b, 1);
+  duel.receive(2);
+  step(b, DUEL.delay - 0.2);
+  assert.ok(!b.enemies.some((e) => e.garbage), 'still waiting');
+  assert.equal(duel.stage(duel.incoming[0]), 2, 'flashing just before it lands');
+  step(b, 0.4);
+  assert.ok(
+    b.enemies.some((e) => e.garbage),
+    'landed',
+  );
+  assert.equal(duel.pending, 0);
+  duel.receive(10);
+  duel.receive(10);
+  duel.receive(10);
+  assert.equal(duel.incoming[0].rows, DUEL.maxAttack);
+  assert.equal(duel.pending, DUEL.maxPending);
+});
+
+test("the opponent's meter and streak travel in snapshots", () => {
+  const { b, duel } = versus();
+  duel.receive(3);
+  duel.streak = 7;
+  step(b, 1);
+  const ghost = new Battle(CHARACTERS[0], 1, new Set(), 'boneyard');
+  const shown = new Duel(ghost);
+  applySnapshot(ghost, JSON.parse(JSON.stringify(takeSnapshot(b))));
+  assert.equal(shown.pending, 3);
+  assert.equal(shown.streak, duel.streak);
+  assert.ok(Math.abs(shown.incoming[0].t - duel.incoming[0].t) < 0.01);
 });
 
 test('garbage rows come down to the player like any other row', () => {
-  const { b, duel } = versus();
-  duel.receive(1);
+  const { b } = versus();
+  b.stage.landGarbage(1);
+  step(b, 0.5);
   const e = b.enemies.find((x) => x.garbage)!;
   const y = e.y;
   step(b, 3);

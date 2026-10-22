@@ -53,6 +53,8 @@ const BOSS_Y = TILE * 1.6;
 const QUEEN_Y = TILE * 2.2;
 const ORBIT = TILE * 2.3;
 const SHIELD = TILE * 0.9;
+/** How fast landing garbage shoves the enemy rows down (px/s). */
+const PUSH_SPEED = TILE * 12;
 
 /** Drives one level: scrolling, row spawns, the two checkpoints and the boss fight. */
 export class Stage {
@@ -69,6 +71,8 @@ export class Stage {
   floorScrollPx = CFG.scrollSpeed * TILE;
   /** Total floor distance scrolled (px), for the scrolling background. */
   floorY = 0;
+  /** Versus: how much further landing garbage still shoves every enemy row down (px). */
+  pushPx = 0;
   banner: { text: string; sub: string; t: number } | null;
   readonly level: LevelDef;
   warnings: Warning[] = [];
@@ -113,8 +117,15 @@ export class Stage {
     this.scrollPx = speed * TILE;
     this.floorScrollPx = this.scrollPx;
     this.floorY += this.floorScrollPx * dt;
+    if (this.pushPx > 0) {
+      const move = Math.min(this.pushPx, PUSH_SPEED * dt);
+      this.pushPx -= move;
+      this.floorY += move;
+      for (const e of b.enemies) if (!e.dead && e.def.rank === 'normal') e.y += move;
+    }
 
-    if (this.state === 'rows') {
+    // New rows wait while garbage is being pushed in above the newest one.
+    if (this.state === 'rows' && this.pushPx <= 0) {
       this.acc += this.scrollPx * dt;
       while (this.acc >= TILE) {
         this.acc -= TILE;
@@ -278,29 +289,35 @@ export class Stage {
   }
 
   /**
-   * Versus: `n` rows of this segment's basic enemy from the opponent land above the newest row, with one gap
-   * (the same column through the whole packet). They are extra: they don't count towards the checkpoint,
-   * and they land during miniboss and boss fights too. Garbage drops nothing.
+   * Versus: `n` rows of this segment's basic enemy from the opponent land like Tetris garbage: they slot in
+   * above the newest row and shove every enemy row `n` tiles closer to the player. One gap per row, in the
+   * same column through the whole packet. They are extra (they don't count towards the checkpoint), they
+   * land during miniboss and boss fights too, and they drop nothing.
    */
   landGarbage(n: number) {
     const b = this.b;
     const cols = this.cols;
     const def = ENEMIES[Object.keys(this.level.weights[this.segment])[0]];
     const hole = b.rng.int(0, cols - 1);
-    const newest = -TILE + this.acc;
+    // Above the newest row, or above garbage that is still being pushed in.
+    const top = -TILE + this.acc - this.pushPx;
+    const push = this.pushPx + n * TILE;
+    const big = b.enemies.filter((e) => !e.dead && e.def.rank !== 'normal');
     for (let j = 0; j < n; j++) {
-      const y = newest - (j + 1) * TILE;
+      const y = top - (j + 1) * TILE;
       for (let c = 0; c < cols; c++) {
         const x = b.targetLeft + c * TILE;
-        if (c === hole || this.occupied(x, y, TILE, TILE)) continue;
+        // Skip the gap, and cells that would end up inside a miniboss or boss.
+        if (c === hole || big.some((e) => e.x < x + TILE && e.x + e.w > x && e.y < y + push + TILE && e.y + e.h > y + push)) continue;
         const e = this.spawn(def, x, y);
         e.garbage = true;
         e.dropsLoot = false;
       }
     }
-    // The level's own rows carry on behind them.
-    if (this.state === 'rows') this.acc -= n * TILE;
-    this.banner = { text: `对手送来 ${n} 行敌人`, sub: 'Incoming rows', t: 1.6 };
+    this.pushPx = push;
+    b.shake = Math.min(12, b.shake + 3 + n);
+    b.text((b.left + b.right) / 2, TILE * 1.2, `对手送来 ${n} 行`, '#ff6a5a', 22);
+    b.events.push({ type: 'explode' });
   }
 
   // ---------------------------------------------------------------- checkpoints
