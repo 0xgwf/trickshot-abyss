@@ -1,5 +1,5 @@
 // LAN co-op client: the battle runs on the server (server/coop.mjs); this sends the player's controls
-// and draws the snapshots it gets back with the normal world renderer and HUD.
+// and plays back the snapshots it gets (smoothly, slightly behind) with the normal world renderer and HUD.
 import type { Input } from '../core/input.ts';
 import { VIEW_H, VIEW_W } from '../core/view.ts';
 import { Battle, type Controls } from '../game/battle.ts';
@@ -8,6 +8,7 @@ import { CHARACTERS } from '../game/data/characters.ts';
 import { PASSIVES } from '../game/data/passives.ts';
 import type { CharacterDef } from '../game/types.ts';
 import type { Offer } from '../game/upgrades.ts';
+import { Playback } from '../net/playback.ts';
 import { applySnapshot, type Snapshot } from '../net/snapshot.ts';
 import { Socket } from '../net/socket.ts';
 import { C, button, text } from './draw.ts';
@@ -21,8 +22,9 @@ export const BODY_COLORS = ['#7ad8ff', '#ffb04a', '#9dff7a', '#ff7ad8'];
 export class Coop {
   readonly socket: Socket;
   state: 'connecting' | 'lobby' | 'playing' | 'ended' | 'busy' | 'closed' = 'connecting';
-  /** Stand-in battle, rewritten from every snapshot and only drawn. */
+  /** Stand-in battle, rewritten every frame from the played-back snapshots and only drawn. */
   ghost: Battle | null = null;
+  private readonly field = new Playback();
   names: string[] = [];
   host = false;
   you = 0;
@@ -55,14 +57,25 @@ export class Coop {
       else if (m.t === 'end') this.state = 'ended';
     }
     if (this.socket.state === 'closed' && this.state !== 'ended') this.state = this.state === 'busy' ? 'busy' : 'closed';
+    const s = this.ghost && this.field.sample();
+    if (s) this.show(s);
   }
 
-  private apply(s: Snapshot, offers: OfferMsg[] | null, m: Record<string, unknown>) {
+  /** The field and HUD at the playback time. */
+  private show(s: Snapshot) {
     const g = this.ghost!;
     applySnapshot(g, s);
     g.recomputeStats();
     g.player.hp = s.hp;
     g.player.maxHp = s.maxHp;
+  }
+
+  private apply(s: Snapshot, offers: OfferMsg[] | null, m: Record<string, unknown>) {
+    const g = this.ghost!;
+    this.field.push(s);
+    // Offers point into the newest snapshot's balls and passives, so resolve them against it;
+    // the played-back field replaces it before drawing.
+    applySnapshot(g, s);
     g.pendingLevelUps = m.pending as number;
     this.chooser = m.chooser as number;
     this.names = m.names as string[];

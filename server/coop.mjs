@@ -136,9 +136,12 @@ function tick(b) {
                   : { k: 'heal' },
           )
         : null;
+    // Stamped with the tick clock: ticks can run in catch-up bursts, but the field moves with them.
+    const s = takeSnapshot(b);
+    s.at = room.ticks * TICK;
     broadcast({
       t: 'snap',
-      s: takeSnapshot(b),
+      s,
       offers,
       pending: b.pendingLevelUps,
       chooser: room.chooser,

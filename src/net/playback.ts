@@ -80,7 +80,7 @@ function blendRows(base: Row[], baseIds: number[], other: Row[], otherIds: numbe
 }
 
 /** A body: x, y, aim, then timers that don't need blending. */
-const blendBody = (q: Snapshot['player'], o: Snapshot['player'], w: number): Snapshot['player'] => [
+const blendBody = (q: Snapshot['bodies'][0], o: Snapshot['bodies'][0], w: number): Snapshot['bodies'][0] => [
   lerp(q[0], o[0], w),
   lerp(q[1], o[1], w),
   lerpAngle(q[2], o[2], w),
@@ -101,7 +101,7 @@ export function blend(base: Snapshot, other: Snapshot, w: number): Snapshot {
     left: lerp(base.left, other.left, w),
     right: lerp(base.right, other.right, w),
     floorY: lerp(base.floorY, other.floorY, w),
-    player: blendBody(base.player, other.player, w),
+    bodies: base.bodies.map((q, i) => (other.bodies[i] ? blendBody(q, other.bodies[i], w) : q)),
   };
   const rows = out as unknown as Record<EntityList, Row[]>;
   for (const list of LISTS)
