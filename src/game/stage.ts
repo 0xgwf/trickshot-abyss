@@ -45,6 +45,9 @@ interface QueenState {
   wallT: number;
 }
 
+/** Enemies that balls can't hurt from the front (Icebound Shieldbearers). */
+const shielded = (id: string) => ENEMIES[id].immuneSide === 'front';
+
 const BOSS_Y = TILE * 1.6;
 const QUEEN_Y = TILE * 2.2;
 const ORBIT = TILE * 2.3;
@@ -169,12 +172,13 @@ export class Stage {
     for (const ps of this.b.passives) ps.def.onRow?.(this.b, ps.lv);
   }
 
-  private pickType(): string {
+  private pickType(noShields = false): string {
     const rng = this.b.rng;
     const w = { ...this.level.weights[this.segment] };
-    // Ease in: no tough enemies in the first rows.
-    if (this.segment === 0 && this.segRows < 10)
-      for (const id of Object.keys(w)) if (ENEMIES[id].hpMul >= 2 && Object.keys(w).length > 1) delete w[id];
+    // Ease in: no tough or shielded enemies in the first rows.
+    const easeIn = this.segment === 0 && this.segRows < 10;
+    for (const id of Object.keys(w))
+      if (Object.keys(w).length > 1 && ((easeIn && ENEMIES[id].hpMul >= 2) || ((easeIn || noShields) && shielded(id)))) delete w[id];
     const ids = Object.keys(w);
     return rng.pickWeighted(ids, (id) => w[id], 1)[0];
   }
@@ -253,6 +257,14 @@ export class Stage {
         for (let r = 0; r < n; r++) out.push(empty().map((_, i) => (i === x0 + dir * r ? type : null)));
         break;
       }
+    }
+    // Balls bounce off shields, so a row of them walls off the corridor: at most a quarter of a row is shielded.
+    const maxShields = Math.floor(cols / 4);
+    for (const row of out) {
+      let n = 0;
+      row.forEach((id, i) => {
+        if (id && shielded(id) && ++n > maxShields) row[i] = this.pickType(true);
+      });
     }
     if (rng.chance(0.55 - 0.15 * this.segment)) out.push(empty());
     return out;
