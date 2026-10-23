@@ -1,13 +1,14 @@
 // Versus rules on top of one player's battle, after Tetris 99 and Puyo Puyo: kill streaks attack in chunks,
-// the opponent's rows wait in a meter before they land, and attacking cancels what is waiting first.
+// the opponent's rows wait in a meter before they land, and attacking cancels what is waiting first. The
+// level never ends and speeds up over the match, so the last player standing wins (royale.ts adds targeting).
 // Pure game logic (no network), so tests and tools/versus-sim.ts run it headless.
 import type { Battle } from './battle.ts';
 import type { Enemy } from './enemy.ts';
 
 /**
- * Versus tuning: seconds and rows. Tuned with tools/versus-sim.ts (40 bot matches per setting, 2026-10-22):
- * matches last about 5 minutes, most end with a player going down and about a fifth by clearing the level,
- * and a player who fires half as often loses about three in four.
+ * Versus tuning: seconds and rows. Tuned with tools/versus-sim.ts and tools/royale-sim.ts (2026-10-23):
+ * a match of 2 lasts about 4 minutes and a player who fires half as often loses about three in four; a match
+ * of 8 lasts about 4–5 minutes, and the players who fire more place better.
  */
 export const DUEL = {
   /** Versus levels are shorter: rows between checkpoints (solo: CFG.segmentRows). */
@@ -16,16 +17,16 @@ export const DUEL = {
    * Margin time, after Puyo Puyo: from this point of the match on, every step makes attacks bigger
    * (fractions carry over) and lands incoming rows sooner, so stalling doesn't pay.
    */
-  marginStart: 150,
-  marginStep: 40,
+  marginStart: 120,
+  marginStep: 30,
   marginAttack: 1.2,
   marginDelay: 0.3,
   minDelay: 1,
   /**
-   * Floor speed-up per margin step. Off: it hurts whoever is ahead most (they face the denser rows), so the
-   * player behind won more often in the simulations.
+   * Floor speed-up per margin step. (It was off while the first to clear the level won: then it hurt whoever
+   * was ahead most. Levels are endless now and the last player standing wins.)
    */
-  marginScroll: 0,
+  marginScroll: 0.15,
   /** A kill streak ends after this long without a kill, and then attacks. */
   streakGap: 2,
   /** Kills in one streak per row sent: a streak of 5 sends nothing, 12 sends 2. */
@@ -60,11 +61,15 @@ export class Duel {
   /** The opponent's attacks waiting to land, oldest first. */
   incoming: Incoming[] = [];
   delay = DUEL.delay;
+  /** Battle royale (src/game/royale.ts): attacks are multiplied by the badges and get extra rows while several players target you. */
+  boost = 1;
+  counter = 0;
 
   constructor(b: Battle) {
     this.b = b;
     b.duel = this;
     b.stage.segmentRows = DUEL.segmentRows;
+    b.stage.endless = true;
   }
 
   /** Margin time step reached on the match clock: 0 until DUEL.marginStart, then 1, 2, … */
@@ -92,7 +97,7 @@ export class Duel {
     if (k > this.announced) {
       this.announced = k;
       const b = this.b;
-      b.text((b.left + b.right) / 2, b.player.y - 120, k === 1 ? '加压开始！' : `加压 ×${k}`, '#ff9a3a', 22);
+      b.text((b.left + b.right) / 2, b.player.y - 120, k === 1 ? '开始加速！' : `加速 ×${k}`, '#ff9a3a', 22);
     }
     this.b.stage.scrollMul = 1 + DUEL.marginScroll * k;
     this.delay = Math.max(DUEL.minDelay, DUEL.delay - DUEL.marginDelay * k);
@@ -115,7 +120,7 @@ export class Duel {
 
   /** An attack cancels the rows waiting to land first (most urgent first); what's left goes to the opponent. */
   private attack(rows: number) {
-    const total = rows * DUEL.marginAttack ** this.margin + this.carry;
+    const total = rows * DUEL.marginAttack ** this.margin * this.boost + this.counter + this.carry;
     rows = Math.floor(total);
     this.carry = total - rows;
     let cancelled = 0;
