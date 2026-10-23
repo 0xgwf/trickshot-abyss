@@ -77,6 +77,15 @@ export class Stage {
   segmentRows: number = CFG.segmentRows;
   /** Floor speed multiplier (versus speeds it up over the match). */
   scrollMul = 1;
+  /**
+   * Versus: the level never ends. After the boss the widest segment goes on, with the same checkpoints
+   * again (two minibosses, then the boss), and the rows keep getting tougher.
+   */
+  endless = false;
+  /** Times the boss was beaten in an endless level. */
+  lap = 0;
+  /** Checkpoints reached so far (0–2 per lap: two minibosses, then the boss). */
+  private passed = 0;
   banner: { text: string; sub: string; t: number } | null;
   readonly level: LevelDef;
   warnings: Warning[] = [];
@@ -155,6 +164,7 @@ export class Stage {
     this.segment = 2;
     this.rows = this.segmentRows * 3;
     this.segRows = this.segmentRows;
+    this.passed = 2;
     const w = this.cols * TILE;
     this.b.targetLeft = this.b.left = (WORLD_W - w) / 2;
     this.b.targetRight = this.b.right = this.b.left + w;
@@ -330,8 +340,9 @@ export class Stage {
 
   private checkpoint() {
     this.pending = [];
-    if (this.segment < 2) {
-      const def = ENEMIES[this.level.minibosses[this.segment]];
+    const step = this.passed++ % 3;
+    if (step < 2) {
+      const def = ENEMIES[this.level.minibosses[step]];
       const x = this.b.targetLeft + ((this.cols - def.w) / 2) * TILE;
       this.miniboss = this.spawn(def, Math.round(x / TILE) * TILE, -def.h * TILE);
       this.miniboss.aiTimer = 2;
@@ -378,19 +389,31 @@ export class Stage {
     const b = this.b;
     if (e === this.miniboss) {
       this.miniboss = null;
-      this.segment++;
       this.segRows = 0;
       this.acc = 0;
+      this.state = 'rows';
+      if (this.segment === 2) {
+        this.banner = { text: '继续下潜', sub: `深度 ${this.rows}`, t: 2.2 };
+        return;
+      }
+      this.segment++;
       const w = this.cols * TILE;
       b.targetLeft = (WORLD_W - w) / 2;
       b.targetRight = b.targetLeft + w;
-      this.state = 'rows';
       this.banner = { text: '坑道拓宽了', sub: `第 ${this.segment + 1} 段`, t: 2.2 };
       b.events.push({ type: 'widen' });
     } else if (e === this.boss) {
       this.boss = null;
-      this.state = 'done';
-      this.winT = 2.5;
+      if (this.endless) {
+        this.lap++;
+        this.segRows = 0;
+        this.acc = 0;
+        this.state = 'rows';
+        this.banner = { text: '无尽深渊', sub: `第 ${this.lap + 1} 轮`, t: 2.5 };
+      } else {
+        this.state = 'done';
+        this.winT = 2.5;
+      }
       for (const o of b.enemies) if (!o.dead) o.dead = true;
       b.shots.length = 0;
       b.burst(e.cx, e.cy, '#ffe9a0', 80);

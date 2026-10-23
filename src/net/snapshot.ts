@@ -68,6 +68,8 @@ export interface Snapshot {
   floorY: number;
   segment: number;
   segRows: number;
+  /** Rows into the level. */
+  rows: number;
   hp: number;
   maxHp: number;
   lvl: number;
@@ -101,8 +103,11 @@ export interface Snapshot {
   streak: number;
 }
 
-/** Captures the parts of a battle that are drawn. Particles are capped to keep messages small. */
-export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
+/**
+ * Captures the parts of a battle that are drawn. Particles are capped to keep messages small; small views of
+ * the field (a royale's opponents) leave out the damage numbers too.
+ */
+export function takeSnapshot(b: Battle, maxParticles = 160, texts = true): Snapshot {
   const st = b.stage;
   const live = b.enemies.filter((e) => !e.dead);
   const balls = b.balls.filter((x) => !x.dead);
@@ -112,6 +117,7 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
   const minions = b.minions.filter((m) => !m.dead);
   const allies = b.allies.filter((a) => !a.dead);
   const particles = b.particles.slice(-maxParticles);
+  const floating = texts ? b.texts : [];
   const p = b.player;
   return {
     at: r3(performance.now() / 1000),
@@ -124,7 +130,7 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
       minions: minions.map(idOf),
       allies: allies.map(idOf),
       particles: particles.map(idOf),
-      texts: b.texts.map(idOf),
+      texts: floating.map(idOf),
       beams: b.beams.map(idOf),
       rings: b.rings.map(idOf),
     },
@@ -136,6 +142,7 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
     floorY: r1(st.floorY),
     segment: st.segment,
     segRows: st.segRows,
+    rows: st.rows,
     hp: Math.round(p.hp),
     maxHp: p.maxHp,
     lvl: b.lvl,
@@ -183,7 +190,7 @@ export function takeSnapshot(b: Battle, maxParticles = 160): Snapshot {
     minions: minions.map((m) => [m.kind, r1(m.x), r1(m.y), r1(m.vx), r1(m.vy)]),
     allies: allies.map((a) => [a.kind, r1(a.x), r1(a.y), a.w, a.h, Math.round(a.hp), a.maxHp, r1(a.flash)]),
     particles: particles.map((q) => [r1(q.x), r1(q.y), q.color, q.size, r1(q.life * 100) / 100, q.max]),
-    texts: b.texts.map((q) => [r1(q.x), r1(q.y), q.text, q.color, r1(q.life * 100) / 100, q.size]),
+    texts: floating.map((q) => [r1(q.x), r1(q.y), q.text, q.color, r1(q.life * 100) / 100, q.size]),
     beams: b.beams.map((q) => [r1(q.x1), r1(q.y1), r1(q.x2), r1(q.y2), q.color, q.width, r1(q.life * 100) / 100, q.max, q.zigzag ? 1 : 0]),
     rings: b.rings.map((q) => [r1(q.x), r1(q.y), r1(q.r), q.color, r1(q.life * 100) / 100, q.max]),
     warnings: st.warnings,
@@ -205,6 +212,7 @@ export function applySnapshot(g: Battle, s: Snapshot) {
   st.floorY = s.floorY;
   st.segment = s.segment;
   st.segRows = s.segRows;
+  st.rows = s.rows;
   const p = g.player;
   [p.x, p.y, p.aim, p.frozen, p.hurtFlash, p.invuln] = s.player;
   p.hp = s.hp;

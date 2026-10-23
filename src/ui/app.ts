@@ -276,7 +276,10 @@ export class App {
       this.overlaySince = this.t;
     }
     v.draw(ctx, input);
-    if (v.drawOverlay(ctx, input) === 'leave') this.leaveVersus();
+    const r = v.drawOverlay(ctx, input);
+    if (r) this.leaveVersus();
+    // Another match: back to the lobby with the same character and level.
+    if (r === 'again') this.startVersus();
   }
 
   // ---------------------------------------------------------------- battle

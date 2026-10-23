@@ -1,5 +1,5 @@
-// Versus smoke test: two headless Chrome windows join a LAN versus match, the bot plays both sides at 2×
-// speed, and screenshots show each player's split screen.
+// Versus smoke test: two headless Chrome windows join the LAN versus room, the first one starts the match,
+// the bot plays both sides at 2× speed, and screenshots show each player's split screen.
 // Usage: node tools/shot-versus.ts <outDir> [url]
 import { chromium, type Page } from 'playwright-core';
 
@@ -32,9 +32,8 @@ const state = (p: Page) =>
           phase: b.phase,
           t: Math.round(b.t),
           kills: b.kills,
-          rowsSent: v.rowsSent,
-          oppSeen: v.oppSeen,
-          pending: b.stage.pending.length,
+          seen: v.rivals.some((r: any) => r?.seen),
+          pending: v.duel.pending,
         }
       : { state: v?.state };
   });
@@ -48,13 +47,15 @@ const autoplay = (p: Page) =>
     v.battle.speed = 2;
     setInterval(() => {
       const b = v.battle;
-      if (b.phase === 'levelup' || b.phase === 'reactor') w.__debug.autoDecide(b);
+      w.__debug.autoDecide(b);
     }, 50);
   });
 
 const a = await player('甲');
 await a.waitForTimeout(300);
 const b = await player('乙');
+await a.waitForTimeout(300);
+await a.keyboard.press('Enter'); // the host starts
 for (let i = 0; i < 50 && (await state(a)).state !== 'playing'; i++) await a.waitForTimeout(100);
 console.log('A', await state(a), 'B', await state(b));
 await autoplay(a);
