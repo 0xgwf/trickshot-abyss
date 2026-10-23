@@ -13,7 +13,7 @@ import type { CharacterDef } from '../game/types.ts';
 import { fetchBoard, submitScore, type Board } from '../net/leaderboard.ts';
 import { GAME } from '../meta.ts';
 import { WorldRenderer } from '../render/world.ts';
-import { C, ballIcon, button, hover, panel, paragraph, passiveIcon, readable, text } from './draw.ts';
+import { C, KIND, accent, ballIcon, button, hover, panel, paragraph, passiveIcon, pips, readable, text } from './draw.ts';
 import { FX, drawCrosshair, drawHud, drawTooltip } from './hud.ts';
 
 interface Save {
@@ -359,26 +359,57 @@ export class App {
       const hv = hover(this.input, x, y, w, h);
       panel(ctx, x, y - (hv ? 6 : 0), w, h, hv);
       const yy = y - (hv ? 6 : 0);
-      text(ctx, info.tag, x + w / 2, yy + 34, { size: 15, align: 'center', color: info.tag.startsWith('新') ? C.green : C.cyan });
+      // Kind ribbon: what this is (ball / passive) on the left, new or the level step on the right.
+      const kind = o.kind === 'newBall' || o.kind === 'upBall' ? 'ball' : o.kind === 'heal' ? 'heal' : 'passive';
+      const color = KIND[kind];
+      const def =
+        o.kind === 'newBall' || o.kind === 'newPassive'
+          ? o.def
+          : o.kind === 'upBall'
+            ? o.ob.parts[0].def
+            : o.kind === 'upPassive'
+              ? o.p.def
+              : null;
+      const evolved = !!def?.evolved;
+      accent(ctx, x, yy, w, h, color, { lv: kind === 'heal' ? 0 : info.lv, evolved });
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = color;
+      ctx.fillRect(x + 9, yy + 9, w - 18, 40);
+      ctx.globalAlpha = 1;
+      text(ctx, kind === 'ball' ? '弹珠 · 主动' : kind === 'passive' ? '被动 · 常驻' : '回复', x + 22, yy + 36, { size: 15, color });
+      const step =
+        o.kind === 'newBall' || o.kind === 'newPassive'
+          ? '新'
+          : o.kind === 'heal'
+            ? ''
+            : info.lv >= 3
+              ? '升到满级'
+              : `Lv${info.lv - 1} → Lv${info.lv}`;
+      text(ctx, `${evolved ? '进化 · ' : ''}${step}`, x + w - 22, yy + 36, {
+        size: 15,
+        align: 'right',
+        color: info.lv >= 3 || evolved ? C.gold : step === '新' ? C.green : C.text,
+      });
+      if (kind !== 'heal') pips(ctx, info.lv, x + w / 2 - 17, yy + 128, color, 10);
       if (o.kind === 'newBall' || o.kind === 'upBall')
         ballIcon(
           ctx,
           [{ def: o.kind === 'newBall' ? o.def : o.ob.parts[0].def, lv: info.lv }],
           x + w / 2,
-          yy + 92,
+          yy + 88,
           30,
           info.color !== '' && (o.kind === 'upBall' ? o.ob.parts[0].def.evolved : o.def.evolved),
         );
       else if (o.kind === 'newPassive' || o.kind === 'upPassive')
-        passiveIcon(ctx, o.kind === 'newPassive' ? o.def : o.p.def, x + w / 2 - 30, yy + 62, 60);
+        passiveIcon(ctx, o.kind === 'newPassive' ? o.def : o.p.def, x + w / 2 - 30, yy + 58, 60);
       else {
         ctx.fillStyle = C.green;
-        ctx.fillRect(x + w / 2 - 8, yy + 70, 16, 44);
-        ctx.fillRect(x + w / 2 - 22, yy + 84, 44, 16);
+        ctx.fillRect(x + w / 2 - 8, yy + 66, 16, 44);
+        ctx.fillRect(x + w / 2 - 22, yy + 80, 44, 16);
       }
-      text(ctx, info.name, x + w / 2, yy + 160, { size: 26, align: 'center', color: readable(info.color) });
-      text(ctx, info.en, x + w / 2, yy + 184, { size: 13, align: 'center', color: C.dim, weight: 500, outline: false });
-      paragraph(ctx, info.desc, x + 22, yy + 218, w - 44, 15, C.text);
+      text(ctx, info.name, x + w / 2, yy + 168, { size: 26, align: 'center', color: readable(info.color) });
+      text(ctx, info.en, x + w / 2, yy + 190, { size: 13, align: 'center', color: C.dim, weight: 500, outline: false });
+      paragraph(ctx, info.desc, x + 22, yy + 222, w - 44, 15, C.text);
       text(ctx, `[${i + 1}]`, x + w / 2, yy + h - 18, { size: 14, align: 'center', color: C.dim });
       if (this.overlayReady && !chosen && ((hv && this.input.clicked(0)) || this.input.wasPressed(`Digit${i + 1}`))) chosen = o;
     });
@@ -554,10 +585,10 @@ export class App {
       ['金币', `${b.gold}`],
     ];
     rows.forEach(([k, v], i) => {
-      text(ctx, k, VIEW_W / 2 - 120, 250 + i * 32, { size: 18, color: C.dim });
-      text(ctx, v, VIEW_W / 2 + 20, 250 + i * 32, { size: 18 });
+      text(ctx, k, VIEW_W / 2 - 120, 246 + i * 28, { size: 18, color: C.dim });
+      text(ctx, v, VIEW_W / 2 + 20, 246 + i * 28, { size: 18 });
     });
-    const by = 250 + rows.length * 32 + 6;
+    const by = 246 + rows.length * 28 + 6;
     b.owned.forEach((ob, i) =>
       ballIcon(
         ctx,
@@ -569,12 +600,19 @@ export class App {
       ),
     );
     b.passives.forEach((p, i) => passiveIcon(ctx, p.def, VIEW_W / 2 - 116 + i * 44, by + 34, 32));
+    // Two columns, so a first clear's long unlock list stays clear of the leaderboard box.
     this.newUnlocks.forEach((u, i) =>
-      text(ctx, `解锁 · ${u}`, VIEW_W / 2, by + 86 + i * 24, { size: 16, align: 'center', color: C.green }),
+      text(ctx, `解锁 · ${u}`, VIEW_W / 2 + (i % 2 ? 190 : -190), by + 80 + Math.floor(i / 2) * 22, {
+        size: 15,
+        align: 'center',
+        color: C.green,
+      }),
     );
-    // Leaderboard submission
+    // Leaderboard submission (only when served by server.mjs; a static host like GitHub Pages has no board).
     const ly = 556;
-    if (this.submitState === 'done') {
+    if (!this.board) {
+      // no leaderboard server
+    } else if (this.submitState === 'done') {
       text(ctx, `已上榜：第 ${this.myRank} 名（共 ${this.board?.total ?? 0} 条成绩）`, VIEW_W / 2, ly + 30, {
         size: 18,
         align: 'center',
@@ -589,11 +627,16 @@ export class App {
     }
     const y = 620;
     const typing = document.activeElement === this.nameInput;
-    if (button(ctx, this.input, VIEW_W / 2 - 280, y, 260, 56, '再来一局') || (!typing && this.input.wasPressed('Enter'))) this.startRun();
-    if (button(ctx, this.input, VIEW_W / 2 + 20, y, 260, 56, '选择角色')) {
+    if (button(ctx, this.input, VIEW_W / 2 - 410, y, 260, 56, '再来一局') || (!typing && this.input.wasPressed('Enter'))) this.startRun();
+    if (button(ctx, this.input, VIEW_W / 2 - 130, y, 260, 56, '选择角色')) {
       this.screen = 'select';
       this.battle = null;
     }
+    if (button(ctx, this.input, VIEW_W / 2 + 150, y, 260, 56, '返回标题') || (!typing && this.input.wasPressed('Escape'))) {
+      this.screen = 'title';
+      this.battle = null;
+    }
+    text(ctx, 'Enter 再来一局 · Esc 返回标题', VIEW_W / 2, y + 80, { size: 14, align: 'center', color: C.dim });
   }
 
   // ---------------------------------------------------------------- menus
