@@ -731,12 +731,18 @@ export class App {
       this.versusPick = false;
       this.screen = 'select';
     }
-    if (button(ctx, this.input, x, 446, 280, 54, '局域网对战')) {
-      this.sfx('click');
-      this.versusPick = true;
-      this.screen = 'select';
+    // The LAN mode needs server.mjs, so it shows once the leaderboard (served by the same server) answers; a static
+    // host like GitHub Pages has neither.
+    let y = 446;
+    if (this.board) {
+      if (button(ctx, this.input, x, y, 280, 54, '局域网对战')) {
+        this.sfx('click');
+        this.versusPick = true;
+        this.screen = 'select';
+      }
+      y += 68;
     }
-    if (button(ctx, this.input, x, 514, 280, 54, '玩法说明')) {
+    if (button(ctx, this.input, x, y, 280, 54, '玩法说明')) {
       this.sfx('click');
       this.screen = 'help';
     }
