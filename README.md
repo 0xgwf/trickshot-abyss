@@ -42,7 +42,7 @@ On phones and tablets in landscape, drag on the left side to move and hold on th
 
 Not done yet: the other 6 layers, town building and meta-progression, and more characters.
 
-## LAN multiplayer (demo)
+## LAN multiplayer
 
 Both modes need the game opened through the bundled server (`npm run serve`), since they talk to it over a WebSocket at `/ws`.
 
@@ -53,7 +53,7 @@ Both modes need the game opened through the bundled server (`npm run serve`), si
 
 ## Play online
 
-The single-player game can be published to GitHub Pages at <https://0xgwf.github.io/trickshot-abyss/>. It is the same build without a server, so it has no leaderboard, and progress is saved in each player's browser. It is only updated when someone runs the Pages workflow by hand (Actions → Pages → Run workflow), so the site keeps showing the version you last chose to share.
+The single-player game can be published to GitHub Pages at <https://0xgwf.github.io/trickshot-abyss/>. It is the same build without a server, so it has no leaderboard or LAN multiplayer, and progress is saved in each player's browser. It is only updated when someone runs the Pages workflow by hand (Actions → Pages → Run workflow), so the site keeps showing the version you last chose to share.
 
 ## Run and deploy
 
@@ -77,7 +77,7 @@ Leaderboard entries are stored in `data/scores.json`; delete the file to reset t
 ## Development
 
 ```bash
-npm run dev                 # Vite dev server (no leaderboard in this mode)
+npm run dev                 # Vite dev server (no leaderboard or LAN multiplayer in this mode)
 npm run check               # Prettier format check + TypeScript type check
 npm run format              # fix formatting
 npm test                    # unit tests: damage formula, statuses, recipes, data integrity

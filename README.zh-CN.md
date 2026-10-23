@@ -40,7 +40,7 @@
 
 还没做的：其余 6 层关卡、小镇建造和局外成长、更多角色。
 
-## 局域网联机（demo）
+## 局域网联机
 
 两种模式都要通过自带的服务端（`npm run serve`）打开游戏，因为它们走 `/ws` 上的 WebSocket。
 
@@ -51,7 +51,7 @@
 
 ## 在线试玩
 
-单机版可以发布到 GitHub Pages：<https://0xgwf.github.io/trickshot-abyss/>。这是不带服务端的同一个构建，所以没有排行榜，进度保存在各自的浏览器里。只有手动运行 Pages 工作流（Actions → Pages → Run workflow）时才会更新，网站上一直是你最后一次选择分享的版本。
+单机版可以发布到 GitHub Pages：<https://0xgwf.github.io/trickshot-abyss/>。这是不带服务端的同一个构建，所以没有排行榜和局域网联机，进度保存在各自的浏览器里。只有手动运行 Pages 工作流（Actions → Pages → Run workflow）时才会更新，网站上一直是你最后一次选择分享的版本。
 
 ## 运行与部署
 
@@ -75,7 +75,7 @@ kill $(pgrep -f '^node server.mjs$')   # 停止
 ## 开发
 
 ```bash
-npm run dev               # Vite 开发服务器（这个模式下没有排行榜）
+npm run dev               # Vite 开发服务器（这个模式下没有排行榜和局域网联机）
 npm run check             # Prettier 格式检查 + TypeScript 类型检查
 npm run format            # 自动整理格式
 npm test                  # 单元测试：伤害公式、异常状态、合成配方、数据完整性
