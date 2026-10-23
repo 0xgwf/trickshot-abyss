@@ -84,7 +84,7 @@ await a.waitForTimeout(8000);
 console.log('fps A', await fps(a), 'B', await fps(b));
 await a.screenshot({ path: `${out}/royale-a-8s.png` });
 // Targeting: A counters, B locks onto A by clicking its field.
-await a.keyboard.press('KeyX');
+await a.keyboard.press('KeyJ');
 const cellOfA = await b.evaluate(() => {
   const v = (window as any).__app.versus;
   const c = v.cells().get(0);

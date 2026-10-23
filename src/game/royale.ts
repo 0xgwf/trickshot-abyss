@@ -6,12 +6,12 @@
 
 export type Strategy = 'random' | 'counter' | 'ko' | 'badges';
 
-/** The targeting strategies, in the order of the buttons (and the keys Z X C V). */
+/** The targeting strategies, in the order of the buttons (and the keys H J K L). */
 export const STRATEGIES: { id: Strategy; zh: string; key: string; hint: string }[] = [
-  { id: 'random', zh: '随机', key: 'KeyZ', hint: '每隔几秒换一个对手' },
-  { id: 'counter', zh: '反击', key: 'KeyX', hint: '打正在打你的人' },
-  { id: 'ko', zh: '追击', key: 'KeyC', hint: '打快要倒下的人' },
-  { id: 'badges', zh: '夺徽', key: 'KeyV', hint: '打徽章最多的人' },
+  { id: 'random', zh: '随机', key: 'KeyH', hint: '每隔几秒换一个对手' },
+  { id: 'counter', zh: '反击', key: 'KeyJ', hint: '打正在打你的人' },
+  { id: 'ko', zh: '追击', key: 'KeyK', hint: '打快要倒下的人' },
+  { id: 'badges', zh: '夺徽', key: 'KeyL', hint: '打徽章最多的人' },
 ];
 
 /** Battle royale tuning (tools/royale-sim.ts). */

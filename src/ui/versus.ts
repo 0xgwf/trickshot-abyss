@@ -504,7 +504,7 @@ export class Versus {
     }
   }
 
-  /** The targeting buttons (keys Z X C V) under the opponents, and your bonuses. */
+  /** The targeting buttons (keys H J K L) under the opponents, and your bonuses. */
   private targeting(ctx: CanvasRenderingContext2D, input: Input) {
     const me = this.seats[this.you];
     const y = TOP + FIELD_H - BAR_H + 4;
