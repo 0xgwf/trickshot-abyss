@@ -800,17 +800,23 @@ export class App {
       this.pickMode = 'solo';
       this.screen = 'select';
     }
-    if (button(ctx, this.input, x, 446, 280, 54, '局域网对战')) {
-      this.sfx('click');
-      this.pickMode = 'versus';
-      this.screen = 'select';
+    // The LAN modes need server.mjs, so they show once the leaderboard (served by the same server) answers; a static
+    // host like GitHub Pages has neither.
+    let y = 446;
+    if (this.board) {
+      if (button(ctx, this.input, x, y, 280, 54, '局域网对战')) {
+        this.sfx('click');
+        this.pickMode = 'versus';
+        this.screen = 'select';
+      }
+      if (button(ctx, this.input, x, y + 66, 280, 54, '局域网合作')) {
+        this.sfx('click');
+        this.pickMode = 'coop';
+        this.screen = 'select';
+      }
+      y += 132;
     }
-    if (button(ctx, this.input, x, 512, 280, 54, '局域网合作')) {
-      this.sfx('click');
-      this.pickMode = 'coop';
-      this.screen = 'select';
-    }
-    if (button(ctx, this.input, x, 578, 280, 54, '玩法说明')) {
+    if (button(ctx, this.input, x, y, 280, 54, '玩法说明')) {
       this.sfx('click');
       this.screen = 'help';
     }
