@@ -42,6 +42,10 @@ On phones and tablets in landscape, drag on the left side to move and hold on th
 
 Not done yet: the other 6 layers, town building and meta-progression, and more characters.
 
+## Play online
+
+The single-player game can be published to GitHub Pages at <https://0xgwf.github.io/trickshot-abyss/>. It is the same build without a server, so it has no leaderboard, and progress is saved in each player's browser. It is only updated when someone runs the Pages workflow by hand (Actions → Pages → Run workflow), so the site keeps showing the version you last chose to share.
+
 ## Run and deploy
 
 Requires Node.js 22.18 or newer.
