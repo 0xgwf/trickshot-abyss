@@ -49,6 +49,10 @@
 - 还没做：合作中途加入、合作时各自选角色、合作模式下对自己移动的预测（现在自己的操作要经过一个来回再加上平滑缓冲才显示出来，局域网里约 0.1 秒）。
 - `node tools/shot-versus.ts <目录> [网址]`、`node tools/shot-royale.ts <目录> [网址] [电脑数]` 和 `node tools/shot-coop.ts <目录> [网址]` 会开多个无头 Chrome 窗口打一局并截图；`node tools/versus-sim.ts` 和 `node tools/royale-sim.ts` 用自动驾驶无头对打，用来调数值。
 
+## 在线试玩
+
+单机版可以发布到 GitHub Pages：<https://0xgwf.github.io/trickshot-abyss/>。这是不带服务端的同一个构建，所以没有排行榜，进度保存在各自的浏览器里。只有手动运行 Pages 工作流（Actions → Pages → Run workflow）时才会更新，网站上一直是你最后一次选择分享的版本。
+
 ## 运行与部署
 
 需要 Node.js 22.18 或更高版本。

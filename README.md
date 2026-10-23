@@ -51,6 +51,10 @@ Both modes need the game opened through the bundled server (`npm run serve`), si
 - Not done yet: rejoining a running co-op game, picking different characters in co-op, prediction for your own movement in co-op (your moves show up after the round trip plus the smoothing buffer, about 0.1 s on a LAN).
 - `node tools/shot-versus.ts <dir> [url]`, `node tools/shot-royale.ts <dir> [url] [bots]` and `node tools/shot-coop.ts <dir> [url]` play a match in several headless Chrome windows and save screenshots; `node tools/versus-sim.ts` and `node tools/royale-sim.ts` play bot matches headless, for tuning.
 
+## Play online
+
+The single-player game can be published to GitHub Pages at <https://0xgwf.github.io/trickshot-abyss/>. It is the same build without a server, so it has no leaderboard, and progress is saved in each player's browser. It is only updated when someone runs the Pages workflow by hand (Actions → Pages → Run workflow), so the site keeps showing the version you last chose to share.
+
 ## Run and deploy
 
 Requires Node.js 22.18 or newer.
