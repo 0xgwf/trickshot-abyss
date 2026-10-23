@@ -664,9 +664,11 @@ export class App {
         color: C.green,
       }),
     );
-    // Leaderboard submission
+    // Leaderboard submission (only when served by server.mjs; a static host like GitHub Pages has no board).
     const ly = 556;
-    if (this.submitState === 'done') {
+    if (!this.board) {
+      // no leaderboard server
+    } else if (this.submitState === 'done') {
       text(ctx, `已上榜：第 ${this.myRank} 名（共 ${this.board?.total ?? 0} 条成绩）`, VIEW_W / 2, ly + 30, {
         size: 18,
         align: 'center',
