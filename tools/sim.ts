@@ -1,5 +1,6 @@
-// Headless balance/crash test: plays whole runs with the autopilot.
-// Usage: node tools/sim.ts [runs=6] [character=warrior] [unlocks=boneyard|snowy|none] [scenario=full|boss] [level=boneyard|snowy]
+// Headless balance/crash test: plays whole runs with the autopilot, with the per-frame checks of
+// tools/invariants.ts on. Exits non-zero on a crash or a failed check.
+// Usage: node tools/sim.ts [runs=6] [character=warrior] [unlocks=boneyard|snowy|none] [scenario=full|boss] [level=boneyard|snowy] [firstSeed=1000]
 import { autoDecide, autopilot } from '../src/game/autopilot.ts';
 import { Battle } from '../src/game/battle.ts';
 import { newOwnedBall } from '../src/game/ball.ts';
@@ -7,12 +8,14 @@ import { CFG } from '../src/game/config.ts';
 import { BALLS } from '../src/game/data/balls.ts';
 import { CHARACTERS } from '../src/game/data/characters.ts';
 import { PASSIVES } from '../src/game/data/passives.ts';
+import { formatIssue, Invariants } from './invariants.ts';
 
 const runs = Number(process.argv[2] ?? 6);
 const charId = process.argv[3] ?? 'warrior';
 const unlocks = new Set(process.argv[4] === 'snowy' ? ['boneyard', 'snowy'] : process.argv[4] === 'boneyard' ? ['boneyard'] : []);
 const scenario = process.argv[5] ?? 'full';
 const levelId = process.argv[6] ?? 'boneyard';
+const firstSeed = Number(process.argv[7] ?? 1000);
 const char = CHARACTERS.find((c) => c.id === charId)!;
 
 const BOSS_BUILDS = [
@@ -82,8 +85,9 @@ function setupBoss(b: Battle, i: number) {
 }
 
 for (let i = 0; i < runs; i++) {
-  const seed = 1000 + i;
+  const seed = firstSeed + i;
   const b = new Battle(char, seed, unlocks, levelId);
+  const inv = new Invariants();
   if (scenario === 'boss') setupBoss(b, i);
   const started = Date.now();
   const segTimes: number[] = [];
@@ -93,6 +97,7 @@ for (let i = 0; i < runs; i++) {
     while (b.phase !== 'won' && b.phase !== 'lost' && b.t < 40 * 60) {
       autoDecide(b);
       b.update(1 / 60, autopilot(b));
+      inv.check(b);
       if (b.stage.segment !== lastSeg) {
         segTimes.push(Math.round(b.t));
         lastSeg = b.stage.segment;
@@ -114,4 +119,6 @@ for (let i = 0; i < runs; i++) {
       `lv=${b.lvl} kills=${b.kills} hp=${Math.round(b.player.hp)}/${b.player.maxHp} dmg=${Math.round(b.damageDealt)} ` +
       `balls=[${balls}] passives=[${pas}] hurt=${JSON.stringify(hurt)} (${Date.now() - started}ms)`,
   );
+  for (const issue of inv.issues) console.log(`  ${formatIssue(issue)}`);
+  if (inv.errors.length) process.exitCode = 1;
 }

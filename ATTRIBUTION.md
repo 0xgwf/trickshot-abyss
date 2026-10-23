@@ -27,8 +27,8 @@ Creative Commons has declared CC BY-SA 4.0 one-way compatible with GPLv3, and se
 
 **Sources used for facts only (no text reproduced):**
 
-- [dood.gg](https://dood.gg/en/ball-x-pit/): character base stats and boss attack patterns.
-- The official screenshots on the [Steam store page](https://store.steampowered.com/app/2062430/BALL_x_PIT/) (used only to infer the HUD layout and field width; not included in this project), plus Steam community discussions and guides (player-measured damage and timings).
+- [dood.gg](https://dood.gg/en/ball-x-pit/): character base stats, boss attack patterns, and how passives level and evolve.
+- The official screenshots on the [Steam store page](https://store.steampowered.com/app/2062430/BALL_x_PIT/) (used only to infer the HUD layout and field width; not included in this project), plus Steam community discussions and guides (player-measured damage and timings, which effects work on bosses, max-level effects of passives).
 - Reviews and guides: [Automaton](https://automaton-media.com/articles/newsjp/roguelite-ball-x-pit-20251016-361853/), [Gcores](https://www.gcores.com/articles/207207), [Press Start](https://press-start.com.au/reviews/pc-reviews/2025/10/16/ball-x-pit-review-groin-grabbingly-good/), [Nintendo World Report](https://www.nintendoworldreport.com/review/72918), Deltias Gaming (via the Wayback Machine) and others.
 - Chinese names: player guides on Bilibili and the PlayStation Store (Hong Kong) page.
 
@@ -61,8 +61,8 @@ Creative Commons 已声明 CC BY-SA 4.0 可以单向兼容 GPLv3，而 AGPLv3 �
 
 **只参考了事实信息、没有复制其文本的来源：**
 
-- [dood.gg](https://dood.gg/en/ball-x-pit/)：角色基础属性、Boss 招式。
-- Steam 商店页的官方截图（仅用于推断界面布局和场地宽度，项目中没有包含这些截图），以及 Steam 社区的讨论和攻略（玩家实测的伤害、时间等数字）。
+- [dood.gg](https://dood.gg/en/ball-x-pit/)：角色基础属性、Boss 招式、被动的升级和进化规则。
+- Steam 商店页的官方截图（仅用于推断界面布局和场地宽度，项目中没有包含这些截图），以及 Steam 社区的讨论和攻略（玩家实测的伤害、时间等数字，哪些效果对 Boss 有效，被动满级时的效果）。
 - 评测和攻略文章：机核、Automaton、Press Start、Nintendo World Report、Deltias Gaming（通过 Wayback Machine 存档访问）等。
 - 中文名称：Bilibili 上的玩家攻略、PlayStation 港服商店页面。
 

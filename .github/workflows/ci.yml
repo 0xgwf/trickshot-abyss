@@ -17,7 +17,10 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
-      - name: Simulated runs must not crash
+      - run: npm test
+      - name: Simulated runs must not crash or fail a check
         run: |
           node tools/sim.ts 4 warrior none full boneyard
           node tools/sim.ts 2 emptynester snowy full snowy
+      - name: Every ball, passive and character on the field
+        run: node tools/stress.ts quick

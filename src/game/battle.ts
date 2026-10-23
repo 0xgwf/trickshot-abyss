@@ -1,6 +1,6 @@
 import { Rng } from '../core/rng.ts';
 import { Ball, newOwnedBall, type BallTag, type OwnedBall } from './ball.ts';
-import { CFG, SEGMENT_COLS, TILE, WORLD_H, WORLD_W } from './config.ts';
+import { CFG, RULES, SEGMENT_COLS, TILE, WORLD_H, WORLD_W } from './config.ts';
 import { BALLS } from './data/balls.ts';
 import { levelById, type LevelDef } from './data/levels.ts';
 import { Enemy, type Dot } from './enemy.ts';
@@ -86,6 +86,9 @@ export interface Zone {
   tick: number;
   /** Touch-once zones (lava, tar, spikes) remember who they already hit. */
   once: Set<Enemy> | null;
+  /** Damage per second to enemies within a tile (lava, tar and ice spikes). */
+  aura?: Range;
+  auraTick?: number;
   apply(b: Battle, e: Enemy): void;
   dead?: boolean;
 }
@@ -292,9 +295,9 @@ export class Battle {
       babyCount: Math.floor(s.lea * CFG.babyCountPerLea),
       babyDamage: [s.lea * CFG.babyDamagePerLea[0], s.lea * CFG.babyDamagePerLea[1]],
       critChance: CFG.critChanceBase + CFG.critPerDex * s.dex,
-      statusPower: 1 + 0.05 * (s.int - 3),
-      aoePower: 1 + 0.05 * (s.int - 3),
-      passivePower: 1 + 0.05 * (s.int - 3),
+      statusPower: 1 + CFG.intPowerPerPoint * (s.int - 3),
+      aoePower: 1 + CFG.intPowerPerPoint * (s.int - 3),
+      passivePower: 1 + CFG.intPowerPerPoint * (s.int - 3),
       damageTaken: 1,
       dodge: 0,
       catchRadius: CFG.catchRadius,
@@ -316,7 +319,7 @@ export class Battle {
     const hpGain = st.maxHp - this.player.maxHp;
     this.player.maxHp = st.maxHp;
     if (hpGain > 0) this.player.hp += hpGain;
-    this.player.hp = Math.min(this.player.hp, this.player.maxHp * (this.hasPassive('everflowing') ? 3 : 1));
+    this.player.hp = Math.min(this.player.hp, this.player.maxHp * (this.hasPassive('everflowing') ? RULES.overhealCap : 1));
     this.stats = st;
   }
 
@@ -644,8 +647,16 @@ export class Battle {
   spawnBaby(x: number, y: number, angle?: number, inherit?: Part[], tag?: BallTag, speedMul?: number) {
     const a = angle ?? this.rng.range(-Math.PI + 0.3, -0.3);
     const ball = this.spawnBall({ parts: inherit ?? [], baby: true, x, y, angle: a, temp: true, tag, speedMul });
-    if (tag === undefined && this.hasPassive('cornucopia') && this.rng.chance(0.5)) {
-      this.spawnBall({ parts: inherit ?? [], baby: true, x, y, angle: a + this.rng.range(-0.4, 0.4), temp: true });
+    const horn = this.passiveLv('cornucopia');
+    if (tag === undefined && horn) {
+      const [lo, hi] = [
+        [0, 1],
+        [0, 2],
+        [1, 2],
+      ][horn - 1];
+      const extra = this.rng.int(lo, hi);
+      for (let i = 0; i < extra; i++)
+        this.spawnBall({ parts: inherit ?? [], baby: true, x, y, angle: a + this.rng.range(-0.4, 0.4), temp: true });
     }
     return ball;
   }
@@ -719,7 +730,7 @@ export class Battle {
 
     // Catch: the ball is coming down and touches the player.
     if (ball.vy > 0 && ball.age > 0.25) {
-      const cr = p.r + ball.r + this.stats.catchRadius * TILE * 0.5;
+      const cr = p.r + ball.r + this.stats.catchRadius * TILE;
       if ((ball.x - p.x) ** 2 + (ball.y - p.y) ** 2 < cr * cr) this.catchBall(ball, true);
     }
   }
@@ -839,6 +850,13 @@ export class Battle {
         let ny = ball.y - cy;
         const d2 = nx * nx + ny * ny;
         if (d2 > r * r) continue;
+        // Still on its way through this enemy's body: no new contact until it is out (shields stay solid).
+        if (c.weak && ball.hitCd.has(e)) {
+          ball.hitCd.set(e, 0.35);
+          continue;
+        }
+        ball.inVx = ball.vx;
+        ball.inVy = ball.vy;
         if (d2 > 1e-6) {
           const d = Math.sqrt(d2);
           nx /= d;
@@ -857,13 +875,11 @@ export class Battle {
         const side = ny > 0.6 ? 'front' : ny < -0.6 ? 'back' : nx > 0 ? 'right' : 'left';
         const weak = c.weak && e.def.immuneSide !== side;
         if (weak && (ball.passThrough || ball.parts.some((pt) => pt.def.pierceSides?.includes(side)))) {
-          if (!ball.hitCd.has(e)) {
-            ball.hitCd.set(e, 0.35);
-            this.hitEnemy(ball, e, side);
-            if (ball.destroysOnHit) {
-              this.destroyBall(ball);
-              return;
-            }
+          ball.hitCd.set(e, 0.35);
+          this.hitEnemy(ball, e, side);
+          if (ball.destroysOnHit) {
+            this.destroyBall(ball);
+            return;
           }
           continue;
         }
@@ -972,7 +988,7 @@ export class Battle {
     else if (kind === 'status') m *= this.stats.statusPower;
     else if (kind === 'passive') m *= this.stats.passivePower;
     if (e.invulnerable) return 0;
-    const dmg = Math.max(1, Math.round(amount * m));
+    const dmg = Math.min(RULES.maxHitDamage, Math.max(1, Math.round(amount * m)));
     e.hp -= dmg;
     e.flash = 0.08;
     this.damageDealt += dmg;
@@ -1046,9 +1062,11 @@ export class Battle {
 
   heal(n: number) {
     const p = this.player;
-    const over = this.hasPassive('everflowing') ? 0.2 : 0;
+    const goblet = this.passiveLv('everflowing');
+    const over = goblet ? [0.2, 0.3, 0.4][goblet - 1] : 0;
     const room = Math.max(0, p.maxHp - p.hp);
-    const healed = Math.min(n, room) + Math.max(0, n - room) * over;
+    const cap = p.maxHp * RULES.overhealCap - p.hp;
+    const healed = Math.min(Math.min(n, room) + Math.max(0, n - room) * over, Math.max(0, cap));
     if (healed <= 0) return;
     p.hp += healed;
     this.text(p.x, p.y - 24, `+${Math.round(healed)}`, '#6dff8a', 16);
@@ -1078,7 +1096,11 @@ export class Battle {
   ) {
     if (e.dead) return;
     const d: Dot = e[which];
-    if (d.stacks <= 0) d.tick = 1;
+    if (d.stacks <= 0) {
+      d.tick = 1;
+      d.max = 0;
+      d.dmg = [0, 0];
+    }
     d.max = Math.max(d.max, max);
     d.stacks = Math.min(d.max, d.stacks + stacks);
     d.timer = Math.max(d.timer, dur);
@@ -1093,7 +1115,7 @@ export class Battle {
   applyFreeze(e: Enemy, dur: number) {
     if (e.dead) return;
     const wasFrozen = e.freeze > 0;
-    e.freeze = Math.max(e.freeze, e.isBoss ? dur * 0.3 : dur);
+    e.freeze = Math.max(e.freeze, e.isBoss ? dur * RULES.bossFreezeMul : dur);
     if (!wasFrozen) {
       const lv = this.passiveLv('frozenspike');
       if (lv)
@@ -1130,11 +1152,12 @@ export class Battle {
     return this.enemies.filter((e) => !e.dead && e.distToPoint(x, y) <= r);
   }
 
-  /** Enemies whose centre lies in an n×n tile square centred on (x, y). */
+  /** Enemies in the n×n tiles around (x, y); an even-sized square extends half a tile further right and down. */
   enemiesInSquare(x: number, y: number, n: number) {
     const half = (n * TILE) / 2;
+    const off = n % 2 === 0 ? TILE / 2 : 0;
     return this.enemies.filter(
-      (e) => !e.dead && Math.abs(e.cx - x) <= half + e.w / 2 - TILE / 2 && Math.abs(e.cy - y) <= half + e.h / 2 - TILE / 2,
+      (e) => !e.dead && Math.abs(e.cx - x - off) <= half + e.w / 2 - TILE / 2 && Math.abs(e.cy - y - off) <= half + e.h / 2 - TILE / 2,
     );
   }
 
@@ -1374,7 +1397,8 @@ export class Battle {
       if (d.stacks <= 0) continue;
       d.timer -= dt;
       d.tick -= dt;
-      if (d.tick <= 0) {
+      // Both timers count down together; the epsilon keeps rounding drift from dropping the last tick.
+      if (d.tick <= 1e-6) {
         d.tick += 1;
         const amount = this.roll(d.dmg) * d.stacks;
         this.damage(e, amount, 'status', false, k === 'frostburn' ? 'frostburn' : 'other');
@@ -1504,6 +1528,13 @@ export class Battle {
       if (z.life <= 0 || z.y - z.r > WORLD_H) {
         z.dead = true;
         continue;
+      }
+      if (z.aura) {
+        z.auraTick = (z.auraTick ?? 0.5) - dt;
+        if (z.auraTick <= 0) {
+          z.auraTick += 1;
+          for (const e of this.enemiesInRadius(z.x, z.y, 1)) this.damage(e, this.roll(z.aura), 'aoe');
+        }
       }
       z.tick -= dt;
       if (z.tick > 0) continue;

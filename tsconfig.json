@@ -15,5 +15,5 @@
     "erasableSyntaxOnly": true,
     "noEmit": true
   },
-  "include": ["src", "tools"]
+  "include": ["src", "tools", "test"]
 }
