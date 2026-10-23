@@ -678,14 +678,16 @@ export class WorldRenderer {
 
   private drawBalls(b: Battle) {
     const ctx = this.ctx;
-    // Additive glow pass first, then the solid balls on top.
+    // Additive glow pass first, then the solid balls on top. Evolved and max-level balls glow more.
     ctx.globalCompositeOperation = 'lighter';
     for (const ball of b.balls) {
       if (!ball.parts.length || ball.state === 'return') continue;
-      ctx.globalAlpha = 0.28;
+      const evolved = ball.parts.some((p) => p.def.evolved);
+      const maxed = ball.parts.every((p) => p.lv >= 3);
+      ctx.globalAlpha = evolved ? 0.42 : maxed ? 0.34 : 0.24;
       ctx.fillStyle = this.ballColor(ball);
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, ball.r * 2.4, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, ball.r * (evolved ? 3.2 : 2.4), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalCompositeOperation = 'source-over';
@@ -711,6 +713,17 @@ export class WorldRenderer {
       if (ball.parts.length) {
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
         ctx.fillRect(ball.x - ball.r * 0.5, ball.y - ball.r * 0.6, ball.r * 0.5, ball.r * 0.5);
+      }
+      // Evolved balls carry three spinning arcs.
+      if (ball.state !== 'return' && ball.parts.some((p) => p.def.evolved)) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 2;
+        for (let k = 0; k < 3; k++) {
+          const a = b.t * 7 + (k * Math.PI * 2) / 3;
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.r * 1.75, a, a + 0.9);
+          ctx.stroke();
+        }
       }
       ctx.globalAlpha = 1;
     }
